@@ -1,11 +1,25 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func Load() *Config {
+	return &Config{
+		Postgres: PostgresConfig{
+			Host:     getEnv("POSTGRES_HOST", "localhost"),
+			Port:     getEnvInt("POSTGRES_PORT", 5432),
+			User:     getEnv("POSTGRES_USER", "postgres"),
+			Password: getEnv("POSTGRES_PASSWORD", "postgres"),
+			Database: getEnv("POSTGRES_DATABASE", "postgres"),
+			SSLMode:  getEnv("POSTGRES_SSL_MODE", "disable"),
+		},
+	}
+}
 
 type Config struct {
 	Postgres PostgresConfig
@@ -20,17 +34,16 @@ type PostgresConfig struct {
 	SSLMode  string
 }
 
-func Load() *Config {
-	return &Config{
-		Postgres: PostgresConfig{
-			Host:     getEnv("POSTGRES_HOST", "localhost"),
-			Port:     getEnvInt("POSTGRES_PORT", 5432),
-			User:     getEnv("POSTGRES_USER", "postgres"),
-			Password: getEnv("POSTGRES_PASSWORD", "postgres"),
-			Database: getEnv("POSTGRES_DATABASE", "postgres"),
-			SSLMode:  getEnv("POSTGRES_SSL_MODE", "disable"),
-		},
-	}
+func (pc PostgresConfig) DSN() string {
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		pc.Host,
+		pc.Port,
+		pc.User,
+		pc.Password,
+		pc.Database,
+		pc.SSLMode,
+	)
 }
 
 func getEnv(key, defaultValue string) string {

@@ -34,7 +34,7 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id int) error
-	List(ctx context.Context, offset, limit int) ([]*User, int, error) // returns users, total count, error
+	ListWithCount(ctx context.Context, offset, limit int) ([]*User, int, error)
 }
 
 // PasswordHasher defines the interface for password hashing operations.

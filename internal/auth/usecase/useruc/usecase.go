@@ -109,7 +109,7 @@ func (uc *useCase) GetUsersList(ctx context.Context, req GetUsersListReq) (*GetU
 	const op = "useruc.GetUsersList"
 
 	offset := req.Page * req.Limit
-	users, total, err := uc.userRepo.List(ctx, offset, req.Limit)
+	users, total, err := uc.userRepo.ListWithCount(ctx, offset, req.Limit)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
