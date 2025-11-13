@@ -1,7 +1,7 @@
 package httptools
 
 import (
-	"chatx-01/pkg/errs"
+	"chatx-01-backend/pkg/errs"
 	"encoding/json"
 	"errors"
 	"net/http"

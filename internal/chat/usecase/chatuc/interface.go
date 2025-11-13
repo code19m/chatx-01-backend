@@ -1,7 +1,7 @@
 package chatuc
 
 import (
-	"chatx-01/pkg/errs"
+	"chatx-01-backend/pkg/errs"
 	"context"
 )
 

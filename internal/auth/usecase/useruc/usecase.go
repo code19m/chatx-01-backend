@@ -1,9 +1,9 @@
 package useruc
 
 import (
-	"chatx-01/internal/auth/domain"
-	"chatx-01/internal/portal/auth"
-	"chatx-01/pkg/errs"
+	"chatx-01-backend/internal/auth/domain"
+	"chatx-01-backend/internal/portal/auth"
+	"chatx-01-backend/pkg/errs"
 	"context"
 	"strings"
 	"time"

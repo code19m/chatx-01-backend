@@ -1,9 +1,9 @@
 package notificationuc
 
 import (
-	"chatx-01/internal/chat/domain"
-	"chatx-01/internal/portal/auth"
-	"chatx-01/pkg/errs"
+	"chatx-01-backend/internal/chat/domain"
+	"chatx-01-backend/internal/portal/auth"
+	"chatx-01-backend/pkg/errs"
 	"context"
 )
 

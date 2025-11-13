@@ -1,8 +1,8 @@
 package http
 
 import (
-	"chatx-01/internal/auth/usecase/authuc"
-	"chatx-01/internal/auth/usecase/useruc"
+	"chatx-01-backend/internal/auth/usecase/authuc"
+	"chatx-01-backend/internal/auth/usecase/useruc"
 	"net/http"
 )
 

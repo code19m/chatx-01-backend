@@ -1,9 +1,9 @@
 package authuc
 
 import (
-	"chatx-01/internal/auth/domain"
-	"chatx-01/pkg/errs"
-	"chatx-01/pkg/token"
+	"chatx-01-backend/internal/auth/domain"
+	"chatx-01-backend/pkg/errs"
+	"chatx-01-backend/pkg/token"
 	"context"
 )
 

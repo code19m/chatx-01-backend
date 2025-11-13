@@ -1,8 +1,8 @@
 package useruc
 
 import (
-	"chatx-01/pkg/errs"
-	"chatx-01/pkg/val"
+	"chatx-01-backend/pkg/errs"
+	"chatx-01-backend/pkg/val"
 	"context"
 )
 

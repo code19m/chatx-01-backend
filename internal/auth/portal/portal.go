@@ -1,7 +1,7 @@
 package portal
 
 import (
-	"chatx-01/internal/portal/auth"
+	"chatx-01-backend/internal/portal/auth"
 	"context"
 )
 

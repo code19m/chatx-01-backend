@@ -1,9 +1,9 @@
 package http
 
 import (
-	"chatx-01/internal/chat/usecase/chatuc"
-	"chatx-01/internal/chat/usecase/messageuc"
-	"chatx-01/internal/chat/usecase/notificationuc"
+	"chatx-01-backend/internal/chat/usecase/chatuc"
+	"chatx-01-backend/internal/chat/usecase/messageuc"
+	"chatx-01-backend/internal/chat/usecase/notificationuc"
 	"net/http"
 )
 

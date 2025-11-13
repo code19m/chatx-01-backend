@@ -1,10 +1,10 @@
 package messageuc
 
 import (
-	authdomain "chatx-01/internal/auth/domain"
-	"chatx-01/internal/chat/domain"
-	"chatx-01/internal/portal/auth"
-	"chatx-01/pkg/errs"
+	authdomain "chatx-01-backend/internal/auth/domain"
+	"chatx-01-backend/internal/chat/domain"
+	"chatx-01-backend/internal/portal/auth"
+	"chatx-01-backend/pkg/errs"
 	"context"
 	"time"
 )
