@@ -4,7 +4,7 @@ import (
 	authdomain "chatx-01/internal/auth/domain"
 	"chatx-01/internal/chat/domain"
 	"chatx-01/internal/portal/auth"
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"context"
 	"errors"
 	"time"
@@ -37,14 +37,14 @@ func (uc *useCase) GetDMsList(ctx context.Context, req GetDMsListReq) (*GetDMsLi
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	offset := req.Page * req.Limit
 	chats, total, err := uc.chatRepo.GetDMsListByUser(ctx, userID, offset, req.Limit)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// TODO: Repository should return enriched data with user info, last message, unread count
@@ -71,14 +71,14 @@ func (uc *useCase) GetGroupsList(ctx context.Context, req GetGroupsListReq) (*Ge
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	offset := req.Page * req.Limit
 	chats, total, err := uc.chatRepo.GetGroupsListByUser(ctx, userID, offset, req.Limit)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// TODO: Repository should return enriched data with participant count, last message, unread count
@@ -106,28 +106,28 @@ func (uc *useCase) GetChat(ctx context.Context, req GetChatReq) (*GetChatResp, e
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Check if chat exists and user is participant
 	chat, err := uc.chatRepo.GetByID(ctx, req.ChatID)
 	if err != nil {
-		return nil, errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("chat_id", "chat not found"))
+		return nil, errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("chat_id", "chat not found"))
 	}
 
 	isParticipant, err := uc.chatRepo.IsParticipant(ctx, req.ChatID, userID)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	if !isParticipant {
-		return nil, errjon.Wrap(op, domain.ErrNotParticipant)
+		return nil, errs.Wrap(op, domain.ErrNotParticipant)
 	}
 
 	// Get participants
 	participants, err := uc.chatRepo.GetParticipants(ctx, req.ChatID)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// Enrich with user data
@@ -135,7 +135,7 @@ func (uc *useCase) GetChat(ctx context.Context, req GetChatReq) (*GetChatResp, e
 	for i, p := range participants {
 		user, err := uc.userRepo.GetByID(ctx, p.UserID)
 		if err != nil {
-			return nil, errjon.Wrap(op, err)
+			return nil, errs.Wrap(op, err)
 		}
 
 		participantDTOs[i] = ChatParticipantDTO{
@@ -161,32 +161,32 @@ func (uc *useCase) CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Check if trying to create DM with self
 	if userID == req.OtherUserID {
-		return nil, errjon.Wrap(op, domain.ErrCannotMessageSelf)
+		return nil, errs.Wrap(op, domain.ErrCannotMessageSelf)
 	}
 
 	// Check if other user exists
 	_, err = uc.userRepo.GetByID(ctx, req.OtherUserID)
 	if err != nil {
-		return nil, errjon.ReplaceOn(
+		return nil, errs.ReplaceOn(
 			err,
-			errjon.ErrNotFound,
-			errjon.NewNotFoundError("other_user_id", "user not found"),
+			errs.ErrNotFound,
+			errs.NewNotFoundError("other_user_id", "user not found"),
 		)
 	}
 
 	// Check if DM already exists
 	existingChat, err := uc.chatRepo.GetDMByParticipants(ctx, userID, req.OtherUserID)
-	if err != nil && !errors.Is(err, errjon.ErrNotFound) {
-		return nil, errjon.Wrap(op, err)
+	if err != nil && !errors.Is(err, errs.ErrNotFound) {
+		return nil, errs.Wrap(op, err)
 	}
 	if existingChat != nil {
-		return nil, errjon.Wrap(op, domain.ErrDMAlreadyExists)
+		return nil, errs.Wrap(op, domain.ErrDMAlreadyExists)
 	}
 
 	// Create chat
@@ -197,7 +197,7 @@ func (uc *useCase) CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp
 	}
 
 	if err := uc.chatRepo.Create(ctx, chat); err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// Add both participants
@@ -207,7 +207,7 @@ func (uc *useCase) CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp
 		UserID:   userID,
 		JoinedAt: now,
 	}); err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	if err := uc.chatRepo.AddParticipant(ctx, &domain.ChatParticipant{
@@ -215,7 +215,7 @@ func (uc *useCase) CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp
 		UserID:   req.OtherUserID,
 		JoinedAt: now,
 	}); err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	return &CreateDMResp{
@@ -228,7 +228,7 @@ func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*Create
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
@@ -236,10 +236,10 @@ func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*Create
 	for _, participantID := range req.ParticipantIDs {
 		_, err := uc.userRepo.GetByID(ctx, participantID)
 		if err != nil {
-			return nil, errjon.ReplaceOn(
+			return nil, errs.ReplaceOn(
 				err,
-				errjon.ErrNotFound,
-				errjon.NewNotFoundError("participant_ids", "one or more participants not found"),
+				errs.ErrNotFound,
+				errs.NewNotFoundError("participant_ids", "one or more participants not found"),
 			)
 		}
 	}
@@ -253,7 +253,7 @@ func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*Create
 	}
 
 	if err := uc.chatRepo.Create(ctx, chat); err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// Add creator as participant
@@ -263,7 +263,7 @@ func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*Create
 		UserID:   userID,
 		JoinedAt: now,
 	}); err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// Add other participants
@@ -277,7 +277,7 @@ func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*Create
 			UserID:   participantID,
 			JoinedAt: now,
 		}); err != nil {
-			return nil, errjon.Wrap(op, err)
+			return nil, errs.Wrap(op, err)
 		}
 	}
 

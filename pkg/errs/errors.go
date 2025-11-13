@@ -1,4 +1,4 @@
-package errjon
+package errs
 
 import "errors"
 

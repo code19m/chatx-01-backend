@@ -3,7 +3,7 @@ package notificationuc
 import (
 	"chatx-01/internal/chat/domain"
 	"chatx-01/internal/portal/auth"
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"context"
 )
 
@@ -34,13 +34,13 @@ func (uc *useCase) GetUnreadMessagesCount(
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	totalCount, err := uc.messageRepo.GetTotalUnreadCount(ctx, userID)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	return &GetUnreadMessagesCountResp{
@@ -56,22 +56,22 @@ func (uc *useCase) GetUnreadMessagesCountByChat(
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Check if user is participant
 	isParticipant, err := uc.chatRepo.IsParticipant(ctx, req.ChatID, userID)
 	if err != nil {
-		return nil, errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("chat_id", "chat not found"))
+		return nil, errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("chat_id", "chat not found"))
 	}
 	if !isParticipant {
-		return nil, errjon.Wrap(op, domain.ErrNotParticipant)
+		return nil, errs.Wrap(op, domain.ErrNotParticipant)
 	}
 
 	unreadCount, err := uc.messageRepo.GetUnreadCountByChat(ctx, req.ChatID, userID)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	return &GetUnreadMessagesCountByChatResp{
@@ -85,32 +85,32 @@ func (uc *useCase) MarkMessagesAsRead(ctx context.Context, req MarkMessagesAsRea
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Check if user is participant
 	isParticipant, err := uc.chatRepo.IsParticipant(ctx, req.ChatID, userID)
 	if err != nil {
-		return errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("chat_id", "chat not found"))
+		return errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("chat_id", "chat not found"))
 	}
 	if !isParticipant {
-		return errjon.Wrap(op, domain.ErrNotParticipant)
+		return errs.Wrap(op, domain.ErrNotParticipant)
 	}
 
 	// Verify message exists and belongs to chat
 	message, err := uc.messageRepo.GetByID(ctx, req.MessageID)
 	if err != nil {
-		return errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("message_id", "message not found"))
+		return errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("message_id", "message not found"))
 	}
 
 	if message.ChatID != req.ChatID {
-		return errjon.Wrap(op, domain.ErrMessageNotInChat)
+		return errs.Wrap(op, domain.ErrMessageNotInChat)
 	}
 
 	// Update last read message
 	if err := uc.chatRepo.UpdateLastRead(ctx, req.ChatID, userID, req.MessageID); err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	return nil
@@ -124,7 +124,7 @@ func (uc *useCase) GetOnlineStatusByUsers(
 
 	_, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// TODO: Implement online status tracking

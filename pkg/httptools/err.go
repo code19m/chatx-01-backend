@@ -1,4 +1,4 @@
-package httpx
+package httptools
 
 import "net/http"
 

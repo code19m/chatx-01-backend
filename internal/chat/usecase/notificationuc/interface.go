@@ -1,7 +1,7 @@
 package notificationuc
 
 import (
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"context"
 )
 
@@ -42,7 +42,7 @@ func (req GetUnreadMessagesCountByChatReq) Validate() error {
 	var verr error
 
 	if req.ChatID <= 0 {
-		verr = errjon.AddFieldError(verr, "chat_id", "invalid chat id")
+		verr = errs.AddFieldError(verr, "chat_id", "invalid chat id")
 	}
 
 	return verr
@@ -63,10 +63,10 @@ func (req MarkMessagesAsReadReq) Validate() error {
 	var verr error
 
 	if req.ChatID <= 0 {
-		verr = errjon.AddFieldError(verr, "chat_id", "invalid chat id")
+		verr = errs.AddFieldError(verr, "chat_id", "invalid chat id")
 	}
 	if req.MessageID <= 0 {
-		verr = errjon.AddFieldError(verr, "message_id", "invalid message id")
+		verr = errs.AddFieldError(verr, "message_id", "invalid message id")
 	}
 
 	return verr
@@ -81,10 +81,10 @@ func (req GetOnlineStatusByUsersReq) Validate() error {
 	var verr error
 
 	if len(req.UserIDs) == 0 {
-		verr = errjon.AddFieldError(verr, "user_ids", "at least one user id is required")
+		verr = errs.AddFieldError(verr, "user_ids", "at least one user id is required")
 	}
 	if len(req.UserIDs) > 100 {
-		verr = errjon.AddFieldError(verr, "user_ids", "cannot check more than 100 users at once")
+		verr = errs.AddFieldError(verr, "user_ids", "cannot check more than 100 users at once")
 	}
 
 	return verr

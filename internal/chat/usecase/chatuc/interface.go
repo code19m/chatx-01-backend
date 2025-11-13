@@ -1,7 +1,7 @@
 package chatuc
 
 import (
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"context"
 )
 
@@ -23,10 +23,10 @@ func (req GetDMsListReq) Validate() error {
 	var verr error
 
 	if req.Page < 0 {
-		verr = errjon.AddFieldError(verr, "page", "page must be non-negative")
+		verr = errs.AddFieldError(verr, "page", "page must be non-negative")
 	}
 	if req.Limit <= 0 || req.Limit > 100 {
-		verr = errjon.AddFieldError(verr, "limit", "limit must be between 1 and 100")
+		verr = errs.AddFieldError(verr, "limit", "limit must be between 1 and 100")
 	}
 
 	return verr
@@ -59,10 +59,10 @@ func (req GetGroupsListReq) Validate() error {
 	var verr error
 
 	if req.Page < 0 {
-		verr = errjon.AddFieldError(verr, "page", "page must be non-negative")
+		verr = errs.AddFieldError(verr, "page", "page must be non-negative")
 	}
 	if req.Limit <= 0 || req.Limit > 100 {
-		verr = errjon.AddFieldError(verr, "limit", "limit must be between 1 and 100")
+		verr = errs.AddFieldError(verr, "limit", "limit must be between 1 and 100")
 	}
 
 	return verr
@@ -94,7 +94,7 @@ func (req GetChatReq) Validate() error {
 	var verr error
 
 	if req.ChatID <= 0 {
-		verr = errjon.AddFieldError(verr, "chat_id", "invalid chat id")
+		verr = errs.AddFieldError(verr, "chat_id", "invalid chat id")
 	}
 
 	return verr
@@ -125,7 +125,7 @@ func (req CreateDMReq) Validate() error {
 	var verr error
 
 	if req.OtherUserID <= 0 {
-		verr = errjon.AddFieldError(verr, "other_user_id", "invalid other user id")
+		verr = errs.AddFieldError(verr, "other_user_id", "invalid other user id")
 	}
 
 	return verr
@@ -145,13 +145,13 @@ func (req CreateGroupReq) Validate() error {
 	var verr error
 
 	if req.Name == "" {
-		verr = errjon.AddFieldError(verr, "name", "group name is required")
+		verr = errs.AddFieldError(verr, "name", "group name is required")
 	}
 	if len(req.Name) > 100 {
-		verr = errjon.AddFieldError(verr, "name", "group name must be 100 characters or less")
+		verr = errs.AddFieldError(verr, "name", "group name must be 100 characters or less")
 	}
 	if len(req.ParticipantIDs) == 0 {
-		verr = errjon.AddFieldError(verr, "participant_ids", "at least one participant is required")
+		verr = errs.AddFieldError(verr, "participant_ids", "at least one participant is required")
 	}
 
 	return verr

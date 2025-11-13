@@ -4,7 +4,7 @@ import (
 	authdomain "chatx-01/internal/auth/domain"
 	"chatx-01/internal/chat/domain"
 	"chatx-01/internal/portal/auth"
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"context"
 	"time"
 )
@@ -36,23 +36,23 @@ func (uc *useCase) GetMessagesList(ctx context.Context, req GetMessagesListReq) 
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Check if user is participant
 	isParticipant, err := uc.chatRepo.IsParticipant(ctx, req.ChatID, userID)
 	if err != nil {
-		return nil, errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("chat_id", "chat not found"))
+		return nil, errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("chat_id", "chat not found"))
 	}
 	if !isParticipant {
-		return nil, errjon.Wrap(op, domain.ErrNotParticipant)
+		return nil, errs.Wrap(op, domain.ErrNotParticipant)
 	}
 
 	offset := req.Page * req.Limit
 	messages, total, err := uc.messageRepo.List(ctx, req.ChatID, offset, req.Limit)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// Enrich messages with sender data
@@ -60,7 +60,7 @@ func (uc *useCase) GetMessagesList(ctx context.Context, req GetMessagesListReq) 
 	for i, msg := range messages {
 		user, err := uc.userRepo.GetByID(ctx, msg.SenderID)
 		if err != nil {
-			return nil, errjon.Wrap(op, err)
+			return nil, errs.Wrap(op, err)
 		}
 
 		var editedAt *string
@@ -94,17 +94,17 @@ func (uc *useCase) SendMessage(ctx context.Context, req SendMessageReq) (*SendMe
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Check if user is participant
 	isParticipant, err := uc.chatRepo.IsParticipant(ctx, req.ChatID, userID)
 	if err != nil {
-		return nil, errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("chat_id", "chat not found"))
+		return nil, errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("chat_id", "chat not found"))
 	}
 	if !isParticipant {
-		return nil, errjon.Wrap(op, domain.ErrNotParticipant)
+		return nil, errs.Wrap(op, domain.ErrNotParticipant)
 	}
 
 	// Create message
@@ -116,7 +116,7 @@ func (uc *useCase) SendMessage(ctx context.Context, req SendMessageReq) (*SendMe
 	}
 
 	if err := uc.messageRepo.Create(ctx, message); err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	return &SendMessageResp{
@@ -130,19 +130,19 @@ func (uc *useCase) EditMessage(ctx context.Context, req EditMessageReq) error {
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Get message
 	message, err := uc.messageRepo.GetByID(ctx, req.MessageID)
 	if err != nil {
-		return errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("message_id", "message not found"))
+		return errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("message_id", "message not found"))
 	}
 
 	// Check if user is the sender
 	if message.SenderID != userID {
-		return errjon.Wrap(op, domain.ErrNotMessageOwner)
+		return errs.Wrap(op, domain.ErrNotMessageOwner)
 	}
 
 	// Update message
@@ -151,7 +151,7 @@ func (uc *useCase) EditMessage(ctx context.Context, req EditMessageReq) error {
 	message.EditedAt = &now
 
 	if err := uc.messageRepo.Update(ctx, message); err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	return nil
@@ -162,23 +162,23 @@ func (uc *useCase) DeleteMessage(ctx context.Context, req DeleteMessageReq) erro
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 	userID := authUser.ID
 
 	// Get message
 	message, err := uc.messageRepo.GetByID(ctx, req.MessageID)
 	if err != nil {
-		return errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("message_id", "message not found"))
+		return errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("message_id", "message not found"))
 	}
 
 	// Check if user is the sender
 	if message.SenderID != userID {
-		return errjon.Wrap(op, domain.ErrNotMessageOwner)
+		return errs.Wrap(op, domain.ErrNotMessageOwner)
 	}
 
 	if err := uc.messageRepo.Delete(ctx, req.MessageID); err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	return nil

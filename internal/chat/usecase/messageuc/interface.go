@@ -1,7 +1,7 @@
 package messageuc
 
 import (
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"context"
 )
 
@@ -22,13 +22,13 @@ func (req GetMessagesListReq) Validate() error {
 	var verr error
 
 	if req.ChatID <= 0 {
-		verr = errjon.AddFieldError(verr, "chat_id", "invalid chat id")
+		verr = errs.AddFieldError(verr, "chat_id", "invalid chat id")
 	}
 	if req.Page < 0 {
-		verr = errjon.AddFieldError(verr, "page", "page must be non-negative")
+		verr = errs.AddFieldError(verr, "page", "page must be non-negative")
 	}
 	if req.Limit <= 0 || req.Limit > 100 {
-		verr = errjon.AddFieldError(verr, "limit", "limit must be between 1 and 100")
+		verr = errs.AddFieldError(verr, "limit", "limit must be between 1 and 100")
 	}
 
 	return verr
@@ -61,13 +61,13 @@ func (req SendMessageReq) Validate() error {
 	var verr error
 
 	if req.ChatID <= 0 {
-		verr = errjon.AddFieldError(verr, "chat_id", "invalid chat id")
+		verr = errs.AddFieldError(verr, "chat_id", "invalid chat id")
 	}
 	if req.Content == "" {
-		verr = errjon.AddFieldError(verr, "content", "message content is required")
+		verr = errs.AddFieldError(verr, "content", "message content is required")
 	}
 	if len(req.Content) > 5000 {
-		verr = errjon.AddFieldError(verr, "content", "message content must be 5000 characters or less")
+		verr = errs.AddFieldError(verr, "content", "message content must be 5000 characters or less")
 	}
 
 	return verr
@@ -87,13 +87,13 @@ func (req EditMessageReq) Validate() error {
 	var verr error
 
 	if req.MessageID <= 0 {
-		verr = errjon.AddFieldError(verr, "message_id", "invalid message id")
+		verr = errs.AddFieldError(verr, "message_id", "invalid message id")
 	}
 	if req.Content == "" {
-		verr = errjon.AddFieldError(verr, "content", "message content is required")
+		verr = errs.AddFieldError(verr, "content", "message content is required")
 	}
 	if len(req.Content) > 5000 {
-		verr = errjon.AddFieldError(verr, "content", "message content must be 5000 characters or less")
+		verr = errs.AddFieldError(verr, "content", "message content must be 5000 characters or less")
 	}
 
 	return verr
@@ -107,7 +107,7 @@ func (req DeleteMessageReq) Validate() error {
 	var verr error
 
 	if req.MessageID <= 0 {
-		verr = errjon.AddFieldError(verr, "message_id", "invalid message id")
+		verr = errs.AddFieldError(verr, "message_id", "invalid message id")
 	}
 
 	return verr

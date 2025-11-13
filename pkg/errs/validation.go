@@ -1,4 +1,4 @@
-package errjon
+package errs
 
 type ValidationError struct {
 	Message string

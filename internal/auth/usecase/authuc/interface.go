@@ -1,7 +1,7 @@
 package authuc
 
 import (
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"chatx-01/pkg/val"
 	"context"
 )
@@ -21,10 +21,10 @@ func (req LoginReq) Validate() error {
 	var verr error
 
 	if err := val.ValidateEmail(req.Email); err != nil {
-		verr = errjon.AddFieldError(verr, "email", err.Error())
+		verr = errs.AddFieldError(verr, "email", err.Error())
 	}
 	if req.Password == "" {
-		verr = errjon.AddFieldError(verr, "password", "password is required")
+		verr = errs.AddFieldError(verr, "password", "password is required")
 	}
 
 	return verr

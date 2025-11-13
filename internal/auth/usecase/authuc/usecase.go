@@ -2,22 +2,22 @@ package authuc
 
 import (
 	"chatx-01/internal/auth/domain"
-	"chatx-01/pkg/errjon"
-	"chatx-01/pkg/tokenx"
+	"chatx-01/pkg/errs"
+	"chatx-01/pkg/token"
 	"context"
 )
 
 type useCase struct {
 	userRepo       domain.UserRepository
 	passwordHasher domain.PasswordHasher
-	tokenGenerator tokenx.Generator
+	tokenGenerator token.Generator
 }
 
 // New creates a new auth use case.
 func New(
 	userRepo domain.UserRepository,
 	passwordHasher domain.PasswordHasher,
-	tokenGenerator tokenx.Generator,
+	tokenGenerator token.Generator,
 ) UseCase {
 	return &useCase{
 		userRepo:       userRepo,
@@ -32,23 +32,23 @@ func (uc *useCase) Login(ctx context.Context, req LoginReq) (*LoginResp, error) 
 	// Get user by email - if not found due to user input, replace with domain error
 	user, err := uc.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, errjon.ReplaceOn(err, errjon.ErrNotFound, domain.ErrInvalidCredentials)
+		return nil, errs.ReplaceOn(err, errs.ErrNotFound, domain.ErrInvalidCredentials)
 	}
 
 	// Compare password
 	if err := uc.passwordHasher.Compare(user.PasswordHash, req.Password); err != nil {
-		return nil, errjon.Wrap(op, domain.ErrInvalidCredentials)
+		return nil, errs.Wrap(op, domain.ErrInvalidCredentials)
 	}
 
 	// Generate tokens
-	accessToken, err := uc.tokenGenerator.Generate(user.ID, string(user.Role), tokenx.TokenTypeAccess)
+	accessToken, err := uc.tokenGenerator.Generate(user.ID, string(user.Role), token.TokenTypeAccess)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
-	refreshToken, err := uc.tokenGenerator.Generate(user.ID, string(user.Role), tokenx.TokenTypeRefresh)
+	refreshToken, err := uc.tokenGenerator.Generate(user.ID, string(user.Role), token.TokenTypeRefresh)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	return &LoginResp{

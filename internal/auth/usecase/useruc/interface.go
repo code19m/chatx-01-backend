@@ -1,7 +1,7 @@
 package useruc
 
 import (
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"chatx-01/pkg/val"
 	"context"
 )
@@ -26,10 +26,10 @@ func (req CreateUserReq) Validate() error {
 	var verr error
 
 	if err := val.ValidateEmail(req.Email); err != nil {
-		verr = errjon.AddFieldError(verr, "email", err.Error())
+		verr = errs.AddFieldError(verr, "email", err.Error())
 	}
 	if err := val.ValidateUsername(req.Username); err != nil {
-		verr = errjon.AddFieldError(verr, "username", err.Error())
+		verr = errs.AddFieldError(verr, "username", err.Error())
 	}
 
 	return verr
@@ -48,7 +48,7 @@ func (req DeleteUserReq) Validate() error {
 	var verr error
 
 	if req.UserID <= 0 {
-		verr = errjon.AddFieldError(verr, "user_id", "invalid user id")
+		verr = errs.AddFieldError(verr, "user_id", "invalid user id")
 	}
 
 	return verr
@@ -63,7 +63,7 @@ func (req GetUserReq) Validate() error {
 	var verr error
 
 	if req.UserID <= 0 {
-		verr = errjon.AddFieldError(verr, "user_id", "invalid user id")
+		verr = errs.AddFieldError(verr, "user_id", "invalid user id")
 	}
 
 	return verr
@@ -88,10 +88,10 @@ func (req GetUsersListReq) Validate() error {
 	var verr error
 
 	if req.Page < 0 {
-		verr = errjon.AddFieldError(verr, "page", "page must be non-negative")
+		verr = errs.AddFieldError(verr, "page", "page must be non-negative")
 	}
 	if req.Limit <= 0 || req.Limit > 100 {
-		verr = errjon.AddFieldError(verr, "limit", "limit must be between 1 and 100")
+		verr = errs.AddFieldError(verr, "limit", "limit must be between 1 and 100")
 	}
 
 	return verr
@@ -139,13 +139,13 @@ func (req ChangePasswordReq) Validate() error {
 	var verr error
 
 	if req.OldPassword == "" {
-		verr = errjon.AddFieldError(verr, "old_password", "old password is required")
+		verr = errs.AddFieldError(verr, "old_password", "old password is required")
 	}
 	if req.NewPassword == "" {
-		verr = errjon.AddFieldError(verr, "new_password", "new password is required")
+		verr = errs.AddFieldError(verr, "new_password", "new password is required")
 	}
 	if len(req.NewPassword) < 8 {
-		verr = errjon.AddFieldError(verr, "new_password", "password must be at least 8 characters")
+		verr = errs.AddFieldError(verr, "new_password", "password must be at least 8 characters")
 	}
 
 	return verr
@@ -160,7 +160,7 @@ func (req ChangeImageReq) Validate() error {
 	var verr error
 
 	if req.ImagePath == "" {
-		verr = errjon.AddFieldError(verr, "image_path", "image path is required")
+		verr = errs.AddFieldError(verr, "image_path", "image path is required")
 	}
 
 	return verr

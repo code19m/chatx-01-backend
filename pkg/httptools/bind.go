@@ -1,7 +1,7 @@
-package httpx
+package httptools
 
 import (
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -31,7 +31,7 @@ func BindRequest[R interface{ Validate() error }](r *http.Request) (R, error) {
 			pathValue := r.PathValue(pathTag)
 			if pathValue != "" {
 				if err := setFieldValue(fieldVal, pathValue); err != nil {
-					return req, errjon.Wrap(op, errjon.AddFieldError(nil, pathTag, err.Error()))
+					return req, errs.Wrap(op, errs.AddFieldError(nil, pathTag, err.Error()))
 				}
 			}
 		}
@@ -41,7 +41,7 @@ func BindRequest[R interface{ Validate() error }](r *http.Request) (R, error) {
 			queryValue := r.URL.Query().Get(queryTag)
 			if queryValue != "" {
 				if err := setFieldValue(fieldVal, queryValue); err != nil {
-					return req, errjon.Wrap(op, errjon.AddFieldError(nil, queryTag, err.Error()))
+					return req, errs.Wrap(op, errs.AddFieldError(nil, queryTag, err.Error()))
 				}
 			}
 		}
@@ -51,13 +51,13 @@ func BindRequest[R interface{ Validate() error }](r *http.Request) (R, error) {
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "application/json" {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			return req, errjon.Wrap(op, err)
+			return req, errs.Wrap(op, err)
 		}
 	}
 
 	// Validate the request
 	if err := req.Validate(); err != nil {
-		return req, errjon.Wrap(op, err)
+		return req, errs.Wrap(op, err)
 	}
 
 	return req, nil
@@ -72,30 +72,30 @@ func setFieldValue(field reflect.Value, value string) error {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		intVal, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			return errjon.Wrap(op, err)
+			return errs.Wrap(op, err)
 		}
 		field.SetInt(intVal)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		uintVal, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
-			return errjon.Wrap(op, err)
+			return errs.Wrap(op, err)
 		}
 		field.SetUint(uintVal)
 	case reflect.Bool:
 		boolVal, err := strconv.ParseBool(value)
 		if err != nil {
-			return errjon.Wrap(op, err)
+			return errs.Wrap(op, err)
 		}
 		field.SetBool(boolVal)
 	case reflect.Float32, reflect.Float64:
 		floatVal, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			return errjon.Wrap(op, err)
+			return errs.Wrap(op, err)
 		}
 		field.SetFloat(floatVal)
 	default:
 		// Unsupported type
-		return errjon.Wrap(op, errors.New("unsupported type"))
+		return errs.Wrap(op, errors.New("unsupported type"))
 	}
 	return nil
 }

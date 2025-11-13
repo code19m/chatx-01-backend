@@ -3,7 +3,7 @@ package useruc
 import (
 	"chatx-01/internal/auth/domain"
 	"chatx-01/internal/portal/auth"
-	"chatx-01/pkg/errjon"
+	"chatx-01/pkg/errs"
 	"context"
 	"strings"
 	"time"
@@ -37,13 +37,13 @@ func (uc *useCase) CreateUser(ctx context.Context, req CreateUserReq) (*CreateUs
 	// Check if user with email already exists
 	existingUser, err := uc.userRepo.GetByEmail(ctx, req.Email)
 	if err == nil && existingUser != nil {
-		return nil, errjon.Wrap(op, errjon.NewConflictError("email", "email already exists"))
+		return nil, errs.Wrap(op, errs.NewConflictError("email", "email already exists"))
 	}
 
 	// Hash password
 	passwordHash, err := uc.passwordHasher.Hash(req.Password)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// Create user
@@ -58,10 +58,10 @@ func (uc *useCase) CreateUser(ctx context.Context, req CreateUserReq) (*CreateUs
 
 	if err := uc.userRepo.Create(ctx, user); err != nil {
 		// Check if repository returned AlreadyExists error (race condition)
-		return nil, errjon.ReplaceOn(
+		return nil, errs.ReplaceOn(
 			err,
-			errjon.ErrAlreadyExists,
-			errjon.NewConflictError("email", "email already exists"),
+			errs.ErrAlreadyExists,
+			errs.NewConflictError("email", "email already exists"),
 		)
 	}
 
@@ -76,11 +76,11 @@ func (uc *useCase) DeleteUser(ctx context.Context, req DeleteUserReq) error {
 	// Check if user exists - this is from user input, so replace with NotFoundError
 	_, err := uc.userRepo.GetByID(ctx, req.UserID)
 	if err != nil {
-		return errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("user_id", "user not found"))
+		return errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("user_id", "user not found"))
 	}
 
 	if err := uc.userRepo.Delete(ctx, req.UserID); err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	return nil
@@ -92,7 +92,7 @@ func (uc *useCase) GetUser(ctx context.Context, req GetUserReq) (*GetUserResp, e
 	user, err := uc.userRepo.GetByID(ctx, req.UserID)
 	if err != nil {
 		// This is from user input, so replace with NotFoundError
-		return nil, errjon.ReplaceOn(err, errjon.ErrNotFound, errjon.NewNotFoundError("user_id", "user not found"))
+		return nil, errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("user_id", "user not found"))
 	}
 
 	return &GetUserResp{
@@ -111,7 +111,7 @@ func (uc *useCase) GetUsersList(ctx context.Context, req GetUsersListReq) (*GetU
 	offset := req.Page * req.Limit
 	users, total, err := uc.userRepo.List(ctx, offset, req.Limit)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	userItems := make([]UserListItem, len(users))
@@ -139,13 +139,13 @@ func (uc *useCase) GetMe(ctx context.Context, req GetMeReq) (*GetMeResp, error) 
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	user, err := uc.userRepo.GetByID(ctx, authUser.ID)
 	if err != nil {
 		// This is from our internal logic (JWT token), not user input, so don't replace
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	return &GetMeResp{
@@ -162,29 +162,29 @@ func (uc *useCase) ChangePassword(ctx context.Context, req ChangePasswordReq) er
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	user, err := uc.userRepo.GetByID(ctx, authUser.ID)
 	if err != nil {
 		// This is from our internal logic (JWT token), not user input, so don't replace
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	// Verify old password
 	if err := uc.passwordHasher.Compare(user.PasswordHash, req.OldPassword); err != nil {
-		return errjon.Wrap(op, errjon.NewNotFoundError("old_password", domain.ErrIncorrectPassword.Error()))
+		return errs.Wrap(op, errs.NewNotFoundError("old_password", domain.ErrIncorrectPassword.Error()))
 	}
 
 	// Hash new password
 	newPasswordHash, err := uc.passwordHasher.Hash(req.NewPassword)
 	if err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	user.PasswordHash = newPasswordHash
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return errjon.Wrap(op, err)
+		return errs.Wrap(op, err)
 	}
 
 	return nil
@@ -195,39 +195,39 @@ func (uc *useCase) ChangeImage(ctx context.Context, req ChangeImageReq) (*Change
 
 	authUser, err := uc.authPr.GetAuthUser(ctx)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	// Check if file exists
 	exists, err := uc.fileStore.Exists(ctx, req.ImagePath)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 	if !exists {
-		return nil, errjon.Wrap(op, errjon.NewNotFoundError("image_path", "file does not exist"))
+		return nil, errs.Wrap(op, errs.NewNotFoundError("image_path", "file does not exist"))
 	}
 
 	// Check content type
 	contentType, err := uc.fileStore.GetContentType(ctx, req.ImagePath)
 	if err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	contentType = strings.ToLower(contentType)
 	if contentType != "image/jpeg" && contentType != "image/jpg" && contentType != "image/png" {
-		return nil, errjon.Wrap(op, errjon.NewValidationError("file must be a JPEG or PNG image"))
+		return nil, errs.Wrap(op, errs.NewValidationError("file must be a JPEG or PNG image"))
 	}
 
 	// Update user image
 	user, err := uc.userRepo.GetByID(ctx, authUser.ID)
 	if err != nil {
 		// This is from our internal logic (JWT token), not user input, so don't replace
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	user.ImagePath = req.ImagePath
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, errjon.Wrap(op, err)
+		return nil, errs.Wrap(op, err)
 	}
 
 	return &ChangeImageResp{
