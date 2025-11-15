@@ -13,7 +13,6 @@ type UseCase interface {
 	CreateGroup(ctx context.Context, req CreateGroupReq) (*CreateGroupResp, error)
 }
 
-// GetDMsList request/response.
 type GetDMsListReq struct {
 	Page  int `query:"page"`
 	Limit int `query:"limit"`
@@ -49,7 +48,6 @@ type DMListItem struct {
 	UnreadCount       int     `json:"unread_count"`
 }
 
-// GetGroupsList request/response.
 type GetGroupsListReq struct {
 	Page  int `query:"page"`
 	Limit int `query:"limit"`
@@ -85,9 +83,8 @@ type GroupListItem struct {
 	UnreadCount       int     `json:"unread_count"`
 }
 
-// GetChat request/response.
 type GetChatReq struct {
-	ChatID int `path:"chatId"`
+	ChatID int `path:"chat_id"`
 }
 
 func (req GetChatReq) Validate() error {
@@ -102,7 +99,7 @@ func (req GetChatReq) Validate() error {
 
 type GetChatResp struct {
 	ChatID       int                  `json:"chat_id"`
-	Type         string               `json:"type"` // "direct" or "group"
+	Type         string               `json:"type"`
 	Name         string               `json:"name,omitempty"`
 	CreatorID    int                  `json:"creator_id,omitempty"`
 	Participants []ChatParticipantDTO `json:"participants"`
@@ -116,7 +113,6 @@ type ChatParticipantDTO struct {
 	JoinedAt  string  `json:"joined_at"`
 }
 
-// CreateDM request/response.
 type CreateDMReq struct {
 	OtherUserID int `json:"other_user_id"`
 }
@@ -135,7 +131,6 @@ type CreateDMResp struct {
 	ChatID int `json:"chat_id"`
 }
 
-// CreateGroup request/response.
 type CreateGroupReq struct {
 	Name           string `json:"name"`
 	ParticipantIDs []int  `json:"participant_ids"`

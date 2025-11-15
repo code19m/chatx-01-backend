@@ -4,6 +4,8 @@ import (
 	"chatx-01-backend/internal/auth/domain"
 	"chatx-01-backend/internal/portal/auth"
 	"chatx-01-backend/pkg/errs"
+	"chatx-01-backend/pkg/filestore"
+	"chatx-01-backend/pkg/hasher"
 	"context"
 	"slices"
 	"strings"
@@ -12,15 +14,15 @@ import (
 
 type useCase struct {
 	userRepo       domain.UserRepository
-	passwordHasher domain.PasswordHasher
-	fileStore      domain.FileStore
+	passwordHasher hasher.Hasher
+	fileStore      filestore.Store
 	authPr         auth.Portal
 }
 
 func New(
 	userRepo domain.UserRepository,
-	passwordHasher domain.PasswordHasher,
-	fileStore domain.FileStore,
+	passwordHasher hasher.Hasher,
+	fileStore filestore.Store,
 	authPr auth.Portal,
 ) UseCase {
 	return &useCase{

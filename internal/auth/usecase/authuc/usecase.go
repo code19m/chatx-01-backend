@@ -3,19 +3,20 @@ package authuc
 import (
 	"chatx-01-backend/internal/auth/domain"
 	"chatx-01-backend/pkg/errs"
+	"chatx-01-backend/pkg/hasher"
 	"chatx-01-backend/pkg/token"
 	"context"
 )
 
 type useCase struct {
 	userRepo       domain.UserRepository
-	passwordHasher domain.PasswordHasher
+	passwordHasher hasher.Hasher
 	tokenGenerator token.Generator
 }
 
 func New(
 	userRepo domain.UserRepository,
-	passwordHasher domain.PasswordHasher,
+	passwordHasher hasher.Hasher,
 	tokenGenerator token.Generator,
 ) UseCase {
 	return &useCase{

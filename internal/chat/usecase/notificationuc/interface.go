@@ -21,9 +21,7 @@ type UseCase interface {
 	) (*GetOnlineStatusByUsersResp, error)
 }
 
-// GetUnreadMessagesCount request/response.
-type GetUnreadMessagesCountReq struct {
-}
+type GetUnreadMessagesCountReq struct{}
 
 func (req GetUnreadMessagesCountReq) Validate() error {
 	return nil
@@ -33,9 +31,8 @@ type GetUnreadMessagesCountResp struct {
 	TotalUnreadCount int `json:"total_unread_count"`
 }
 
-// GetUnreadMessagesCountByChat request/response.
 type GetUnreadMessagesCountByChatReq struct {
-	ChatID int `path:"chatId"`
+	ChatID int `path:"chat_id"`
 }
 
 func (req GetUnreadMessagesCountByChatReq) Validate() error {
@@ -53,7 +50,6 @@ type GetUnreadMessagesCountByChatResp struct {
 	UnreadCount int `json:"unread_count"`
 }
 
-// MarkMessagesAsRead request.
 type MarkMessagesAsReadReq struct {
 	ChatID    int `json:"chat_id"`
 	MessageID int `json:"message_id"`
@@ -72,7 +68,6 @@ func (req MarkMessagesAsReadReq) Validate() error {
 	return verr
 }
 
-// GetOnlineStatusByUsers request/response.
 type GetOnlineStatusByUsersReq struct {
 	UserIDs []int `json:"user_ids"`
 }
@@ -97,5 +92,5 @@ type GetOnlineStatusByUsersResp struct {
 type UserOnlineStatus struct {
 	UserID   int     `json:"user_id"`
 	IsOnline bool    `json:"is_online"`
-	LastSeen *string `json:"last_seen,omitempty"` // Only present if user is offline
+	LastSeen *string `json:"last_seen,omitempty"`
 }

@@ -13,7 +13,7 @@ type UseCase interface {
 }
 
 type GetMessagesListReq struct {
-	ChatID int `path:"chatId"`
+	ChatID int `path:"chat_id"`
 	Page   int `query:"page"`
 	Limit  int `query:"limit"`
 }
@@ -79,7 +79,7 @@ type SendMessageResp struct {
 }
 
 type EditMessageReq struct {
-	MessageID int    `path:"messageId"`
+	MessageID int    `path:"message_id"`
 	Content   string `json:"content"`
 }
 
@@ -100,7 +100,7 @@ func (req EditMessageReq) Validate() error {
 }
 
 type DeleteMessageReq struct {
-	MessageID int `path:"messageId"`
+	MessageID int `path:"message_id"`
 }
 
 func (req DeleteMessageReq) Validate() error {

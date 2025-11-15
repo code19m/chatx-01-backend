@@ -52,15 +52,3 @@ type UserRepository interface {
 	// Returns users slice, total count, and error.
 	ListWithCount(ctx context.Context, offset, limit int) ([]*User, int, error)
 }
-
-// PasswordHasher defines the interface for password hashing operations.
-type PasswordHasher interface {
-	Hash(password string) (string, error)
-	Compare(hashedPassword, password string) error
-}
-
-// FileStore defines the interface for file storage operations.
-type FileStore interface {
-	Exists(ctx context.Context, path string) (bool, error)
-	GetContentType(ctx context.Context, path string) (string, error)
-}

@@ -1,6 +1,9 @@
 package auth
 
-import "context"
+import (
+	"context"
+	"net/http"
+)
 
 type AuthenticatedUser struct {
 	ID   int
@@ -16,15 +19,21 @@ type User struct {
 }
 
 type Portal interface {
-	// GetAuthUser retrieves the authenticated user from context
+	// GetAuthUser retrieves the authenticated user from context.
 	GetAuthUser(ctx context.Context) (AuthenticatedUser, error)
 
-	// GetUserByID retrieves a user by their ID
+	// GetUserByID retrieves a user by their ID.
 	GetUserByID(ctx context.Context, id int) (*User, error)
 
-	// GetUsersByIDs retrieves multiple users by their IDs
+	// GetUsersByIDs retrieves multiple users by their IDs.
 	GetUsersByIDs(ctx context.Context, ids []int) ([]*User, error)
 
-	// UserExists checks if a user exists by ID
+	// UserExists checks if a user exists by ID.
 	UserExists(ctx context.Context, id int) (bool, error)
+
+	// RequireAuth returns a middleware that checks if the user is authenticated.
+	RequireAuth() func(next http.Handler) http.Handler
+
+	// RequireAdmin creates a middleware that checks if the user is authenticated and has admin role.
+	RequireAdmin() func(next http.Handler) http.Handler
 }

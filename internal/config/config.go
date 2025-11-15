@@ -4,25 +4,57 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
+)
+
+const (
+	defaultAccessTokenTTL  = 15 * time.Minute
+	defaultRefreshTokenTTL = 24 * time.Hour
 )
 
 func Load() *Config {
 	return &Config{
+		Server: ServerConfig{
+			Addr:         getEnv("SERVER_ADDR", ":9900"),
+			ReadTimeout:  getEnvDuration("SERVER_READ_TIMEOUT", 10*time.Second),
+			WriteTimeout: getEnvDuration("SERVER_WRITE_TIMEOUT", 10*time.Second),
+			IdleTimeout:  getEnvDuration("SERVER_IDLE_TIMEOUT", 120*time.Second),
+		},
 		Postgres: PostgresConfig{
 			Host:     getEnv("POSTGRES_HOST", "localhost"),
 			Port:     getEnvInt("POSTGRES_PORT", 5432),
 			User:     getEnv("POSTGRES_USER", "postgres"),
 			Password: getEnv("POSTGRES_PASSWORD", "postgres"),
-			Database: getEnv("POSTGRES_DATABASE", "postgres"),
-			SSLMode:  getEnv("POSTGRES_SSL_MODE", "disable"),
+			Database: getEnv("POSTGRES_DB", "chatx"),
+			SSLMode:  getEnv("POSTGRES_SSL", "disable"),
+		},
+		AuthToken: AuthTokenConfig{
+			Secret:          getEnv("AUTH_TOKEN_SECRET", "secret"),
+			AccessTokenTTL:  getEnvDuration("AUTH_TOKEN_ACCESS_TOKEN_TTL", defaultAccessTokenTTL),
+			RefreshTokenTTL: getEnvDuration("AUTH_TOKEN_REFRESH_TOKEN_TTL", defaultRefreshTokenTTL),
+		},
+		MinIO: MinIOConfig{
+			Endpoint:        getEnv("MINIO_ENDPOINT", "localhost:9000"),
+			Bucket:          getEnv("MINIO_BUCKET", "chatx"),
+			AccessKeyID:     getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+			SecretAccessKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
+			UseSSL:          getEnvBool("MINIO_USE_SSL", false),
 		},
 	}
 }
 
 type Config struct {
-	Postgres PostgresConfig
+	Server    ServerConfig
+	Postgres  PostgresConfig
+	AuthToken AuthTokenConfig
+	MinIO     MinIOConfig
+}
+
+type ServerConfig struct {
+	Addr         string
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	IdleTimeout  time.Duration
 }
 
 type PostgresConfig struct {
@@ -44,6 +76,20 @@ func (pc PostgresConfig) DSN() string {
 		pc.Database,
 		pc.SSLMode,
 	)
+}
+
+type AuthTokenConfig struct {
+	Secret          string
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+}
+
+type MinIOConfig struct {
+	Endpoint        string
+	Bucket          string
+	AccessKeyID     string
+	SecretAccessKey string
+	UseSSL          bool
 }
 
 func getEnv(key, defaultValue string) string {
@@ -80,16 +126,16 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 	return defaultValue
 }
 
-func getEnvSlice(key string, defaultValue []string) []string {
-	if value := os.Getenv(key); value != "" {
-		parts := strings.Split(value, ",")
-		result := make([]string, 0, len(parts))
-		for _, part := range parts {
-			if trimmed := strings.TrimSpace(part); trimmed != "" {
-				result = append(result, trimmed)
-			}
-		}
-		return result
-	}
-	return defaultValue
-}
+// func getEnvSlice(key string, defaultValue []string) []string {
+// 	if value := os.Getenv(key); value != "" {
+// 		parts := strings.Split(value, ",")
+// 		result := make([]string, 0, len(parts))
+// 		for _, part := range parts {
+// 			if trimmed := strings.TrimSpace(part); trimmed != "" {
+// 				result = append(result, trimmed)
+// 			}
+// 		}
+// 		return result
+// 	}
+// 	return defaultValue
+// }
