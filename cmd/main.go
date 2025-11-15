@@ -33,25 +33,55 @@ func main() {
 }
 
 func run() error {
-	initCtx := context.Background()
-
-	// Load configuration from environment variables
 	cfg := config.Load()
 
-	// Initialize database pool
-	pool, err := pg.NewPostgresPool(initCtx, cfg.Postgres.DSN())
-	if err != nil {
-		return fmt.Errorf("failed to init postgres pool: %w", err)
-	}
-	defer pool.Close()
+	initCtx := context.Background()
 
-	// Init pkg components
+	infra, cleanup, err := initInfrastructure(initCtx, cfg)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	useCases := initUseCases(infra)
+
+	srv := setupHTTPServer(cfg, useCases, infra)
+
+	return runServer(srv)
+}
+
+type infrastructure struct {
+	tokenGenerator token.Generator
+	passwordHasher hasher.Hasher
+	fileStore      filestore.Store
+
+	userRepo    *authInfra.PgUserRepo
+	chatRepo    *chatInfra.PgChatRepo
+	messageRepo *chatInfra.PgMessageRepo
+
+	authPortal *authPortal.Portal
+}
+
+type useCases struct {
+	auth         authuc.UseCase
+	user         useruc.UseCase
+	chat         chatuc.UseCase
+	message      messageuc.UseCase
+	notification notificationuc.UseCase
+}
+
+func initInfrastructure(ctx context.Context, cfg *config.Config) (*infrastructure, func(), error) {
+	pool, err := pg.NewPostgresPool(ctx, cfg.Postgres.DSN())
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to init postgres pool: %w", err)
+	}
+
 	tokenGenerator := token.NewGenerator(
 		cfg.AuthToken.Secret,
 		cfg.AuthToken.AccessTokenTTL,
 		cfg.AuthToken.RefreshTokenTTL,
 	)
-	passwordHasher := hasher.NewHasher(100000, 16, 32) // PBKDF2 with 100k iterations, 16-byte salt, 32-byte key
+	passwordHasher := hasher.NewHasher(100000, 16, 32)
 	fileStore := filestore.NewMinioStore(filestore.Config{
 		Endpoint:        cfg.MinIO.Endpoint,
 		Bucket:          cfg.MinIO.Bucket,
@@ -60,51 +90,64 @@ func run() error {
 		UseSSL:          cfg.MinIO.UseSSL,
 	})
 
-	// Initialize repositories
-	pgUser := authInfra.NewPgUserRepo(pool)
-	pgChat := chatInfra.NewPgChatRepo(pool)
-	pgMessage := chatInfra.NewPgMessageRepo(pool)
+	userRepo := authInfra.NewPgUserRepo(pool)
+	chatRepo := chatInfra.NewPgChatRepo(pool)
+	messageRepo := chatInfra.NewPgMessageRepo(pool)
 
-	// Initialize portals
-	authPr := authPortal.New(pgUser, tokenGenerator)
+	authPr := authPortal.New(userRepo, tokenGenerator)
 
-	// Initialize use cases
-	authUseCase := authuc.New(pgUser, passwordHasher, tokenGenerator)
-	userUseCase := useruc.New(pgUser, passwordHasher, fileStore, authPr)
-	chatUseCase := chatuc.New(pgChat, pgMessage, authPr)
-	messageUseCase := messageuc.New(pgChat, pgMessage, authPr)
-	notificationUseCase := notificationuc.New(pgChat, pgMessage, authPr)
+	cleanup := func() {
+		pool.Close()
+		log.Println("Postgres pool closed")
+	}
 
-	// Initialize mux server
+	return &infrastructure{
+		tokenGenerator: tokenGenerator,
+		passwordHasher: passwordHasher,
+		fileStore:      fileStore,
+		userRepo:       userRepo,
+		chatRepo:       chatRepo,
+		messageRepo:    messageRepo,
+		authPortal:     authPr,
+	}, cleanup, nil
+}
+
+func initUseCases(infra *infrastructure) *useCases {
+	return &useCases{
+		auth:         authuc.New(infra.userRepo, infra.passwordHasher, infra.tokenGenerator),
+		user:         useruc.New(infra.userRepo, infra.passwordHasher, infra.fileStore, infra.authPortal),
+		chat:         chatuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
+		message:      messageuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
+		notification: notificationuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
+	}
+}
+
+func setupHTTPServer(cfg *config.Config, uc *useCases, infra *infrastructure) *http.Server {
 	mux := http.NewServeMux()
 
-	// Register controllers
-	authHttp.Register(mux, "/auth", authUseCase, userUseCase, tokenGenerator, authPr)
-	chatHttp.Register(mux, "/chat", chatUseCase, messageUseCase, notificationUseCase, authPr)
+	authHttp.Register(mux, "/auth", uc.auth, uc.user, infra.tokenGenerator, infra.authPortal)
+	chatHttp.Register(mux, "/chat", uc.chat, uc.message, uc.notification, infra.authPortal)
 
-	// Configure HTTP server
-	srv := &http.Server{
+	return &http.Server{
 		Addr:         cfg.Server.Addr,
 		Handler:      mux,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
+}
 
-	// Channel to listen for errors from the server
+func runServer(srv *http.Server) error {
 	serverErrors := make(chan error, 1)
 
-	// Start HTTP server in a goroutine
 	go func() {
-		log.Printf("Starting server on %s", cfg.Server.Addr)
+		log.Printf("Starting server on %s", srv.Addr)
 		serverErrors <- srv.ListenAndServe()
 	}()
 
-	// Channel to listen for interrupt signals
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
-	// Block until we receive a signal or an error
 	select {
 	case err := <-serverErrors:
 		return fmt.Errorf("server error: %w", err)
@@ -112,13 +155,10 @@ func run() error {
 	case sig := <-shutdown:
 		log.Printf("Received shutdown signal: %v", sig)
 
-		// Create context with timeout for graceful shutdown
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		// Attempt graceful shutdown
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			// Force close if graceful shutdown fails
 			if closeErr := srv.Close(); closeErr != nil {
 				return fmt.Errorf("failed to close server: %w", closeErr)
 			}
