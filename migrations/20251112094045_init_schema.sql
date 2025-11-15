@@ -7,8 +7,8 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'user')),
     image_path VARCHAR(500),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_users_email ON users(email);
@@ -19,7 +19,7 @@ CREATE TABLE chats (
     type VARCHAR(50) NOT NULL CHECK (type IN ('direct', 'group')),
     name VARCHAR(255),
     creator_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_chats_type ON chats(type);
@@ -29,9 +29,9 @@ CREATE INDEX idx_chats_created_at ON chats(created_at DESC);
 CREATE TABLE chat_participants (
     chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_read_message_id INTEGER,
-    last_read_at TIMESTAMP,
+    last_read_at TIMESTAMPTZ,
     PRIMARY KEY (chat_id, user_id)
 );
 
@@ -43,8 +43,8 @@ CREATE TABLE messages (
     chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
     sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
-    sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    edited_at TIMESTAMP
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    edited_at TIMESTAMPTZ
 );
 
 CREATE INDEX idx_messages_chat_id ON messages(chat_id, sent_at DESC);
