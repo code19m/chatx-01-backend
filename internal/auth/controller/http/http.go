@@ -40,8 +40,8 @@ func Register(
 // registerHandlers registers all handlers.
 func (c *ctrl) registerHandlers() {
 	// auth endpoints
-	c.register(http.MethodPost, "/auth/login", http.HandlerFunc(c.login))
-	c.register(http.MethodPost, "/auth/logout", http.HandlerFunc(c.logout), c.authPr.RequireAuth())
+	c.register(http.MethodPost, "/login", http.HandlerFunc(c.login))
+	c.register(http.MethodPost, "/logout", http.HandlerFunc(c.logout), c.authPr.RequireAuth())
 
 	// user endpoints
 	c.register(http.MethodPost, "/users", http.HandlerFunc(c.createUser), c.authPr.RequireAdmin())
