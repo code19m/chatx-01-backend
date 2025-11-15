@@ -13,7 +13,6 @@ type useCase struct {
 	tokenGenerator token.Generator
 }
 
-// New creates a new auth use case.
 func New(
 	userRepo domain.UserRepository,
 	passwordHasher domain.PasswordHasher,
@@ -29,24 +28,22 @@ func New(
 func (uc *useCase) Login(ctx context.Context, req LoginReq) (*LoginResp, error) {
 	const op = "authuc.Login"
 
-	// Get user by email - if not found due to user input, replace with domain error
 	user, err := uc.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, errs.ReplaceOn(err, errs.ErrNotFound, domain.ErrInvalidCredentials)
 	}
 
-	// Compare password
-	if err := uc.passwordHasher.Compare(user.PasswordHash, req.Password); err != nil {
+	err = uc.passwordHasher.Compare(user.PasswordHash, req.Password)
+	if err != nil {
 		return nil, errs.Wrap(op, domain.ErrInvalidCredentials)
 	}
 
-	// Generate tokens
-	accessToken, err := uc.tokenGenerator.Generate(user.ID, string(user.Role), token.TokenTypeAccess)
+	accessToken, err := uc.tokenGenerator.Generate(user.ID, user.Role.String(), token.TokenTypeAccess)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
 
-	refreshToken, err := uc.tokenGenerator.Generate(user.ID, string(user.Role), token.TokenTypeRefresh)
+	refreshToken, err := uc.tokenGenerator.Generate(user.ID, user.Role.String(), token.TokenTypeRefresh)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -55,7 +52,7 @@ func (uc *useCase) Login(ctx context.Context, req LoginReq) (*LoginResp, error) 
 		UserID:       user.ID,
 		Username:     user.Username,
 		Email:        user.Email,
-		Role:         string(user.Role),
+		Role:         user.Role,
 		ImagePath:    user.ImagePath,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,

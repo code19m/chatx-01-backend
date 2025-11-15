@@ -1,30 +1,29 @@
-package repository
+package infra
 
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"chatx-01-backend/internal/chat/domain"
+	"chatx-01-backend/pkg/errs"
+	"chatx-01-backend/pkg/pg"
 )
 
-// ChatPostgresRepository implements domain.ChatRepository using PostgreSQL
-type ChatPostgresRepository struct {
+type PgChatRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewChatPostgresRepository creates a new PostgreSQL chat repository
-func NewChatPostgresRepository(pool *pgxpool.Pool) *ChatPostgresRepository {
-	return &ChatPostgresRepository{
+func NewPgChatRepo(pool *pgxpool.Pool) *PgChatRepo {
+	return &PgChatRepo{
 		pool: pool,
 	}
 }
 
-// Create creates a new chat in the database
-func (r *ChatPostgresRepository) Create(ctx context.Context, chat *domain.Chat) error {
+func (r *PgChatRepo) Create(ctx context.Context, chat *domain.Chat) error {
+	const op = "pgchat.Create"
+
 	query := `
 		INSERT INTO chats (type, name, creator_id, created_at)
 		VALUES ($1, $2, $3, $4)
@@ -38,16 +37,16 @@ func (r *ChatPostgresRepository) Create(ctx context.Context, chat *domain.Chat) 
 		chat.CreatorID,
 		chat.CreatedAt,
 	).Scan(&chat.ID)
-
 	if err != nil {
-		return fmt.Errorf("failed to create chat: %w", err)
+		return pg.WrapRepoError(op, err)
 	}
 
 	return nil
 }
 
-// GetByID retrieves a chat by its ID
-func (r *ChatPostgresRepository) GetByID(ctx context.Context, id int) (*domain.Chat, error) {
+func (r *PgChatRepo) GetByID(ctx context.Context, id int) (*domain.Chat, error) {
+	const op = "pgchat.GetByID"
+
 	query := `
 		SELECT id, type, name, creator_id, created_at
 		FROM chats
@@ -61,19 +60,16 @@ func (r *ChatPostgresRepository) GetByID(ctx context.Context, id int) (*domain.C
 		&chat.CreatorID,
 		&chat.CreatedAt,
 	)
-
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("chat not found: %w", err)
-		}
-		return nil, fmt.Errorf("failed to get chat by id: %w", err)
+		return nil, pg.WrapRepoError(op, err)
 	}
 
 	return chat, nil
 }
 
-// GetDMByParticipants retrieves a direct message chat between two users
-func (r *ChatPostgresRepository) GetDMByParticipants(ctx context.Context, userID1, userID2 int) (*domain.Chat, error) {
+func (r *PgChatRepo) GetDMByParticipants(ctx context.Context, userID1, userID2 int) (*domain.Chat, error) {
+	const op = "pgchat.GetDMByParticipants"
+
 	query := `
 		SELECT c.id, c.type, c.name, c.creator_id, c.created_at
 		FROM chats c
@@ -89,20 +85,16 @@ func (r *ChatPostgresRepository) GetDMByParticipants(ctx context.Context, userID
 		&chat.CreatorID,
 		&chat.CreatedAt,
 	)
-
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("dm not found: %w", err)
-		}
-		return nil, fmt.Errorf("failed to get dm by participants: %w", err)
+		return nil, pg.WrapRepoError(op, err)
 	}
 
 	return chat, nil
 }
 
-// GetDMsListByUser retrieves all direct message chats for a user with pagination
-func (r *ChatPostgresRepository) GetDMsListByUser(ctx context.Context, userID int, offset, limit int) ([]*domain.Chat, int, error) {
-	// Get total count
+func (r *PgChatRepo) GetDMsListByUser(ctx context.Context, userID int, offset, limit int) ([]*domain.Chat, int, error) {
+	const op = "pgchat.GetDMsListByUser"
+
 	var totalCount int
 	countQuery := `
 		SELECT COUNT(DISTINCT c.id)
@@ -112,10 +104,9 @@ func (r *ChatPostgresRepository) GetDMsListByUser(ctx context.Context, userID in
 
 	err := r.pool.QueryRow(ctx, countQuery, userID, domain.ChatTypeDirect).Scan(&totalCount)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count dms: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 
-	// Get paginated chats
 	query := `
 		SELECT c.id, c.type, c.name, c.creator_id, c.created_at
 		FROM chats c
@@ -126,7 +117,7 @@ func (r *ChatPostgresRepository) GetDMsListByUser(ctx context.Context, userID in
 
 	rows, err := r.pool.Query(ctx, query, userID, domain.ChatTypeDirect, limit, offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list dms: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 	defer rows.Close()
 
@@ -141,21 +132,21 @@ func (r *ChatPostgresRepository) GetDMsListByUser(ctx context.Context, userID in
 			&chat.CreatedAt,
 		)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan chat: %w", err)
+			return nil, 0, pg.WrapRepoError(op, err)
 		}
 		chats = append(chats, chat)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("error iterating chats: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 
 	return chats, totalCount, nil
 }
 
-// GetGroupsListByUser retrieves all group chats for a user with pagination
-func (r *ChatPostgresRepository) GetGroupsListByUser(ctx context.Context, userID int, offset, limit int) ([]*domain.Chat, int, error) {
-	// Get total count
+func (r *PgChatRepo) GetGroupsListByUser(ctx context.Context, userID int, offset, limit int) ([]*domain.Chat, int, error) {
+	const op = "pgchat.GetGroupsListByUser"
+
 	var totalCount int
 	countQuery := `
 		SELECT COUNT(DISTINCT c.id)
@@ -165,10 +156,9 @@ func (r *ChatPostgresRepository) GetGroupsListByUser(ctx context.Context, userID
 
 	err := r.pool.QueryRow(ctx, countQuery, userID, domain.ChatTypeGroup).Scan(&totalCount)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count groups: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 
-	// Get paginated chats
 	query := `
 		SELECT c.id, c.type, c.name, c.creator_id, c.created_at
 		FROM chats c
@@ -179,7 +169,7 @@ func (r *ChatPostgresRepository) GetGroupsListByUser(ctx context.Context, userID
 
 	rows, err := r.pool.Query(ctx, query, userID, domain.ChatTypeGroup, limit, offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list groups: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 	defer rows.Close()
 
@@ -194,20 +184,21 @@ func (r *ChatPostgresRepository) GetGroupsListByUser(ctx context.Context, userID
 			&chat.CreatedAt,
 		)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan chat: %w", err)
+			return nil, 0, pg.WrapRepoError(op, err)
 		}
 		chats = append(chats, chat)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("error iterating chats: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 
 	return chats, totalCount, nil
 }
 
-// AddParticipant adds a participant to a chat
-func (r *ChatPostgresRepository) AddParticipant(ctx context.Context, participant *domain.ChatParticipant) error {
+func (r *PgChatRepo) AddParticipant(ctx context.Context, participant *domain.ChatParticipant) error {
+	const op = "pgchat.AddParticipant"
+
 	query := `
 		INSERT INTO chat_participants (chat_id, user_id, joined_at, last_read_message_id, last_read_at)
 		VALUES ($1, $2, $3, $4, $5)`
@@ -221,33 +212,34 @@ func (r *ChatPostgresRepository) AddParticipant(ctx context.Context, participant
 		participant.LastReadMessageID,
 		participant.LastReadAt,
 	)
-
 	if err != nil {
-		return fmt.Errorf("failed to add participant: %w", err)
+		return pg.WrapRepoError(op, err)
 	}
 
 	return nil
 }
 
-// RemoveParticipant removes a participant from a chat
-func (r *ChatPostgresRepository) RemoveParticipant(ctx context.Context, chatID, userID int) error {
+func (r *PgChatRepo) RemoveParticipant(ctx context.Context, chatID, userID int) error {
+	const op = "pgchat.RemoveParticipant"
+
 	query := `DELETE FROM chat_participants WHERE chat_id = $1 AND user_id = $2`
 
 	result, err := r.pool.Exec(ctx, query, chatID, userID)
 	if err != nil {
-		return fmt.Errorf("failed to remove participant: %w", err)
+		return pg.WrapRepoError(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("participant not found")
+		return errs.Wrap(op, errors.New("no rows affected"))
 	}
 
 	return nil
 }
 
-// GetParticipants retrieves all participants of a chat
-func (r *ChatPostgresRepository) GetParticipants(ctx context.Context, chatID int) ([]*domain.ChatParticipant, error) {
+func (r *PgChatRepo) GetParticipants(ctx context.Context, chatID int) ([]*domain.ChatParticipant, error) {
+	const op = "pgchat.GetParticipants"
+
 	query := `
 		SELECT chat_id, user_id, joined_at, last_read_message_id, last_read_at
 		FROM chat_participants
@@ -256,7 +248,7 @@ func (r *ChatPostgresRepository) GetParticipants(ctx context.Context, chatID int
 
 	rows, err := r.pool.Query(ctx, query, chatID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get participants: %w", err)
+		return nil, pg.WrapRepoError(op, err)
 	}
 	defer rows.Close()
 
@@ -271,33 +263,35 @@ func (r *ChatPostgresRepository) GetParticipants(ctx context.Context, chatID int
 			&participant.LastReadAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan participant: %w", err)
+			return nil, pg.WrapRepoError(op, err)
 		}
 		participants = append(participants, participant)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating participants: %w", err)
+		return nil, pg.WrapRepoError(op, err)
 	}
 
 	return participants, nil
 }
 
-// IsParticipant checks if a user is a participant of a chat
-func (r *ChatPostgresRepository) IsParticipant(ctx context.Context, chatID, userID int) (bool, error) {
+func (r *PgChatRepo) IsParticipant(ctx context.Context, chatID, userID int) (bool, error) {
+	const op = "pgchat.IsParticipant"
+
 	query := `SELECT EXISTS(SELECT 1 FROM chat_participants WHERE chat_id = $1 AND user_id = $2)`
 
 	var exists bool
 	err := r.pool.QueryRow(ctx, query, chatID, userID).Scan(&exists)
 	if err != nil {
-		return false, fmt.Errorf("failed to check participant: %w", err)
+		return false, pg.WrapRepoError(op, err)
 	}
 
 	return exists, nil
 }
 
-// UpdateLastRead updates the last read message for a participant
-func (r *ChatPostgresRepository) UpdateLastRead(ctx context.Context, chatID, userID, messageID int) error {
+func (r *PgChatRepo) UpdateLastRead(ctx context.Context, chatID, userID, messageID int) error {
+	const op = "pgchat.UpdateLastRead"
+
 	query := `
 		UPDATE chat_participants
 		SET last_read_message_id = $1, last_read_at = NOW()
@@ -305,12 +299,12 @@ func (r *ChatPostgresRepository) UpdateLastRead(ctx context.Context, chatID, use
 
 	result, err := r.pool.Exec(ctx, query, messageID, chatID, userID)
 	if err != nil {
-		return fmt.Errorf("failed to update last read: %w", err)
+		return pg.WrapRepoError(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("participant not found")
+		return errs.Wrap(op, errors.New("no rows affected"))
 	}
 
 	return nil

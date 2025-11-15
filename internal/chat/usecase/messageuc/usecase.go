@@ -1,40 +1,37 @@
 package messageuc
 
 import (
-	authdomain "chatx-01-backend/internal/auth/domain"
+	"context"
+	"time"
+
 	"chatx-01-backend/internal/chat/domain"
 	"chatx-01-backend/internal/portal/auth"
 	"chatx-01-backend/pkg/errs"
-	"context"
-	"time"
 )
 
 type useCase struct {
 	chatRepo    domain.ChatRepository
 	messageRepo domain.MessageRepository
-	userRepo    authdomain.UserRepository
-	authPr      auth.Auth
+	authPortal  auth.Portal
 }
 
 // New creates a new message use case.
 func New(
 	chatRepo domain.ChatRepository,
 	messageRepo domain.MessageRepository,
-	userRepo authdomain.UserRepository,
-	authPr auth.Auth,
+	authPortal auth.Portal,
 ) UseCase {
 	return &useCase{
 		chatRepo:    chatRepo,
 		messageRepo: messageRepo,
-		userRepo:    userRepo,
-		authPr:      authPr,
+		authPortal:  authPortal,
 	}
 }
 
 func (uc *useCase) GetMessagesList(ctx context.Context, req GetMessagesListReq) (*GetMessagesListResp, error) {
 	const op = "messageuc.GetMessagesList"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -58,7 +55,7 @@ func (uc *useCase) GetMessagesList(ctx context.Context, req GetMessagesListReq) 
 	// Enrich messages with sender data
 	messageDTOs := make([]MessageDTO, len(messages))
 	for i, msg := range messages {
-		user, err := uc.userRepo.GetByID(ctx, msg.SenderID)
+		user, err := uc.authPortal.GetUserByID(ctx, msg.SenderID)
 		if err != nil {
 			return nil, errs.Wrap(op, err)
 		}
@@ -92,7 +89,7 @@ func (uc *useCase) GetMessagesList(ctx context.Context, req GetMessagesListReq) 
 func (uc *useCase) SendMessage(ctx context.Context, req SendMessageReq) (*SendMessageResp, error) {
 	const op = "messageuc.SendMessage"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -128,7 +125,7 @@ func (uc *useCase) SendMessage(ctx context.Context, req SendMessageReq) (*SendMe
 func (uc *useCase) EditMessage(ctx context.Context, req EditMessageReq) error {
 	const op = "messageuc.EditMessage"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return errs.Wrap(op, err)
 	}
@@ -160,7 +157,7 @@ func (uc *useCase) EditMessage(ctx context.Context, req EditMessageReq) error {
 func (uc *useCase) DeleteMessage(ctx context.Context, req DeleteMessageReq) error {
 	const op = "messageuc.DeleteMessage"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return errs.Wrap(op, err)
 	}

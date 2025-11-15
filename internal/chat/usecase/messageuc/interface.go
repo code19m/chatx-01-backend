@@ -46,7 +46,7 @@ type MessageDTO struct {
 	ChatID      int     `json:"chat_id"`
 	SenderID    int     `json:"sender_id"`
 	SenderName  string  `json:"sender_name"`
-	SenderImage string  `json:"sender_image,omitempty"`
+	SenderImage *string `json:"sender_image,omitempty"`
 	Content     string  `json:"content"`
 	SentAt      string  `json:"sent_at"`
 	EditedAt    *string `json:"edited_at,omitempty"`

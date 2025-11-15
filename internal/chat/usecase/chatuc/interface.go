@@ -110,10 +110,10 @@ type GetChatResp struct {
 }
 
 type ChatParticipantDTO struct {
-	UserID    int    `json:"user_id"`
-	Username  string `json:"username"`
-	ImagePath string `json:"image_path,omitempty"`
-	JoinedAt  string `json:"joined_at"`
+	UserID    int     `json:"user_id"`
+	Username  string  `json:"username"`
+	ImagePath *string `json:"image_path,omitempty"`
+	JoinedAt  string  `json:"joined_at"`
 }
 
 // CreateDM request/response.

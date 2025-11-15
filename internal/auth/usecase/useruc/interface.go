@@ -1,6 +1,7 @@
 package useruc
 
 import (
+	"chatx-01-backend/internal/auth/domain"
 	"chatx-01-backend/pkg/errs"
 	"chatx-01-backend/pkg/val"
 	"context"
@@ -17,9 +18,9 @@ type UseCase interface {
 }
 
 type CreateUserReq struct {
-	Email    string
-	Username string
-	Password string
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 func (req CreateUserReq) Validate() error {
@@ -39,9 +40,8 @@ type CreateUserResp struct {
 	UserID int `json:"user_id"`
 }
 
-// DeleteUser request.
 type DeleteUserReq struct {
-	UserID int `path:"userId"`
+	UserID int `path:"user_id"`
 }
 
 func (req DeleteUserReq) Validate() error {
@@ -54,9 +54,8 @@ func (req DeleteUserReq) Validate() error {
 	return verr
 }
 
-// GetUser request/response.
 type GetUserReq struct {
-	UserID int `path:"userId"`
+	UserID int `path:"user_id"`
 }
 
 func (req GetUserReq) Validate() error {
@@ -70,15 +69,14 @@ func (req GetUserReq) Validate() error {
 }
 
 type GetUserResp struct {
-	UserID    int    `json:"user_id"`
-	Username  string `json:"username"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	ImagePath string `json:"image_path,omitempty"`
-	CreatedAt string `json:"created_at"`
+	UserID    int             `json:"user_id"`
+	Username  string          `json:"username"`
+	Email     string          `json:"email"`
+	Role      domain.UserRole `json:"role"`
+	ImagePath *string         `json:"image_path"`
+	CreatedAt string          `json:"created_at"`
 }
 
-// GetUsersList request/response.
 type GetUsersListReq struct {
 	Page  int `query:"page"`
 	Limit int `query:"limit"`
@@ -105,31 +103,28 @@ type GetUsersListResp struct {
 }
 
 type UserListItem struct {
-	UserID    int    `json:"user_id"`
-	Username  string `json:"username"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	ImagePath string `json:"image_path,omitempty"`
-	CreatedAt string `json:"created_at"`
+	UserID    int             `json:"user_id"`
+	Username  string          `json:"username"`
+	Email     string          `json:"email"`
+	Role      domain.UserRole `json:"role"`
+	ImagePath *string         `json:"image_path"`
+	CreatedAt string          `json:"created_at"`
 }
 
-// GetMe request/response.
-type GetMeReq struct {
-}
+type GetMeReq struct{}
 
 func (req GetMeReq) Validate() error {
 	return nil
 }
 
 type GetMeResp struct {
-	UserID    int    `json:"user_id"`
-	Username  string `json:"username"`
-	Email     string `json:"email"`
-	Role      string `json:"role"`
-	ImagePath string `json:"image_path,omitempty"`
+	UserID    int             `json:"user_id"`
+	Username  string          `json:"username"`
+	Email     string          `json:"email"`
+	Role      domain.UserRole `json:"role"`
+	ImagePath *string         `json:"image_path"`
 }
 
-// ChangePassword request.
 type ChangePasswordReq struct {
 	OldPassword string `json:"old_password"`
 	NewPassword string `json:"new_password"`
@@ -151,7 +146,6 @@ func (req ChangePasswordReq) Validate() error {
 	return verr
 }
 
-// ChangeImage request/response.
 type ChangeImageReq struct {
 	ImagePath string `json:"image_path"`
 }
@@ -167,5 +161,5 @@ func (req ChangeImageReq) Validate() error {
 }
 
 type ChangeImageResp struct {
-	ImagePath string `json:"image_path"`
+	ImagePath *string `json:"image_path"`
 }

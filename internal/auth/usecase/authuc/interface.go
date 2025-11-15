@@ -1,6 +1,7 @@
 package authuc
 
 import (
+	"chatx-01-backend/internal/auth/domain"
 	"chatx-01-backend/pkg/errs"
 	"chatx-01-backend/pkg/val"
 	"context"
@@ -11,7 +12,6 @@ type UseCase interface {
 	Logout(ctx context.Context, req LogoutReq) error
 }
 
-// Login request/response.
 type LoginReq struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -31,16 +31,15 @@ func (req LoginReq) Validate() error {
 }
 
 type LoginResp struct {
-	UserID       int    `json:"user_id"`
-	Username     string `json:"username"`
-	Email        string `json:"email"`
-	Role         string `json:"role"`
-	ImagePath    string `json:"image_path,omitempty"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	UserID       int             `json:"user_id"`
+	Username     string          `json:"username"`
+	Email        string          `json:"email"`
+	Role         domain.UserRole `json:"role"`
+	ImagePath    *string         `json:"image_path"`
+	AccessToken  string          `json:"access_token"`
+	RefreshToken string          `json:"refresh_token"`
 }
 
-// Logout request.
 type LogoutReq struct {
 }
 

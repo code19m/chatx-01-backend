@@ -37,8 +37,8 @@ func (c *ctrl) registerHandlers() {
 	c.register(http.MethodPut, "/users/me/password", http.HandlerFunc(c.changePassword))
 	c.register(http.MethodPut, "/users/me/image", http.HandlerFunc(c.changeImage))
 	c.register(http.MethodPost, "/users", http.HandlerFunc(c.createUser))
-	c.register(http.MethodDelete, "/users/{userId}", http.HandlerFunc(c.deleteUser))
-	c.register(http.MethodGet, "/users/{userId}", http.HandlerFunc(c.getUser))
+	c.register(http.MethodDelete, "/users/{user_id}", http.HandlerFunc(c.deleteUser))
+	c.register(http.MethodGet, "/users/{user_id}", http.HandlerFunc(c.getUser))
 	c.register(http.MethodGet, "/users", http.HandlerFunc(c.getUsersList))
 }
 

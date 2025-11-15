@@ -10,19 +10,19 @@ import (
 type useCase struct {
 	chatRepo    domain.ChatRepository
 	messageRepo domain.MessageRepository
-	authPr      auth.Auth
+	authPortal  auth.Portal
 }
 
 // New creates a new notification use case.
 func New(
 	chatRepo domain.ChatRepository,
 	messageRepo domain.MessageRepository,
-	authPr auth.Auth,
+	authPortal auth.Portal,
 ) UseCase {
 	return &useCase{
 		chatRepo:    chatRepo,
 		messageRepo: messageRepo,
-		authPr:      authPr,
+		authPortal:  authPortal,
 	}
 }
 
@@ -32,7 +32,7 @@ func (uc *useCase) GetUnreadMessagesCount(
 ) (*GetUnreadMessagesCountResp, error) {
 	const op = "notificationuc.GetUnreadMessagesCount"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -54,7 +54,7 @@ func (uc *useCase) GetUnreadMessagesCountByChat(
 ) (*GetUnreadMessagesCountByChatResp, error) {
 	const op = "notificationuc.GetUnreadMessagesCountByChat"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -83,7 +83,7 @@ func (uc *useCase) GetUnreadMessagesCountByChat(
 func (uc *useCase) MarkMessagesAsRead(ctx context.Context, req MarkMessagesAsReadReq) error {
 	const op = "notificationuc.MarkMessagesAsRead"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return errs.Wrap(op, err)
 	}
@@ -122,7 +122,7 @@ func (uc *useCase) GetOnlineStatusByUsers(
 ) (*GetOnlineStatusByUsersResp, error) {
 	const op = "notificationuc.GetOnlineStatusByUsers"
 
-	_, err := uc.authPr.GetAuthUser(ctx)
+	_, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}

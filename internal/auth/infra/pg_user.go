@@ -1,15 +1,14 @@
-package repository
+package infra
 
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"chatx-01-backend/internal/auth/domain"
 	"chatx-01-backend/pkg/errs"
+	"chatx-01-backend/pkg/pg"
 )
 
 type PgUserRepo struct {
@@ -23,7 +22,7 @@ func NewPgUserRepo(pool *pgxpool.Pool) *PgUserRepo {
 }
 
 func (r *PgUserRepo) Create(ctx context.Context, user *domain.User) error {
-	const op = "pguserrepo.Create"
+	const op = "pguser.Create"
 
 	query := `
 		INSERT INTO users (email, username, password_hash, role, image_path, created_at, updated_at)
@@ -41,19 +40,16 @@ func (r *PgUserRepo) Create(ctx context.Context, user *domain.User) error {
 		user.CreatedAt,
 		user.UpdatedAt,
 	).Scan(&user.ID)
-
-	// TODO: handle conflict
-	if errors.Is(err, pgx.ErrNoRows) {
-		return errs.Wrap(op, errs.ErrNotFound)
-	}
 	if err != nil {
-		return errs.Wrap(op, err)
+		return pg.WrapRepoError(op, err)
 	}
 
 	return nil
 }
 
 func (r *PgUserRepo) GetByID(ctx context.Context, id int) (*domain.User, error) {
+	const op = "pguser.GetByID"
+
 	query := `
 		SELECT id, email, username, password_hash, role, image_path, created_at, updated_at
 		FROM users
@@ -70,18 +66,16 @@ func (r *PgUserRepo) GetByID(ctx context.Context, id int) (*domain.User, error) 
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
-
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("user not found: %w", err)
-		}
-		return nil, fmt.Errorf("failed to get user by id: %w", err)
+		return nil, pg.WrapRepoError(op, err)
 	}
 
 	return user, nil
 }
 
 func (r *PgUserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	const op = "pguser.GetByEmail"
+
 	query := `
 		SELECT id, email, username, password_hash, role, image_path, created_at, updated_at
 		FROM users
@@ -98,18 +92,16 @@ func (r *PgUserRepo) GetByEmail(ctx context.Context, email string) (*domain.User
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
-
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("user not found: %w", err)
-		}
-		return nil, fmt.Errorf("failed to get user by email: %w", err)
+		return nil, pg.WrapRepoError(op, err)
 	}
 
 	return user, nil
 }
 
 func (r *PgUserRepo) Update(ctx context.Context, user *domain.User) error {
+	const op = "pguser.Update"
+
 	query := `
 		UPDATE users
 		SET email = $1, username = $2, password_hash = $3, role = $4, image_path = $5, updated_at = $6
@@ -126,45 +118,46 @@ func (r *PgUserRepo) Update(ctx context.Context, user *domain.User) error {
 		user.UpdatedAt,
 		user.ID,
 	)
-
 	if err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
+		return pg.WrapRepoError(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("user not found")
+		return errs.Wrap(op, errors.New("no rofs affected"))
 	}
 
 	return nil
 }
 
 func (r *PgUserRepo) Delete(ctx context.Context, id int) error {
+	const op = "pguser.Delete"
+
 	query := `DELETE FROM users WHERE id = $1`
 
 	result, err := r.pool.Exec(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete user: %w", err)
+		return pg.WrapRepoError(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return fmt.Errorf("user not found")
+		return errs.Wrap(op, errors.New("no rows affected"))
 	}
 
 	return nil
 }
 
-func (r *PgUserRepo) List(ctx context.Context, offset, limit int) ([]*domain.User, int, error) {
-	// Get total count
+func (r *PgUserRepo) ListWithCount(ctx context.Context, offset, limit int) ([]*domain.User, int, error) {
+	const op = "pguser.ListWithCount"
+
 	var totalCount int
 	countQuery := `SELECT COUNT(*) FROM users`
 	err := r.pool.QueryRow(ctx, countQuery).Scan(&totalCount)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 
-	// Get paginated users
 	query := `
 		SELECT id, email, username, password_hash, role, image_path, created_at, updated_at
 		FROM users
@@ -173,7 +166,7 @@ func (r *PgUserRepo) List(ctx context.Context, offset, limit int) ([]*domain.Use
 
 	rows, err := r.pool.Query(ctx, query, limit, offset)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 	defer rows.Close()
 
@@ -191,13 +184,13 @@ func (r *PgUserRepo) List(ctx context.Context, offset, limit int) ([]*domain.Use
 			&user.UpdatedAt,
 		)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
+			return nil, 0, pg.WrapRepoError(op, err)
 		}
 		users = append(users, user)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("error iterating users: %w", err)
+		return nil, 0, pg.WrapRepoError(op, err)
 	}
 
 	return users, totalCount, nil

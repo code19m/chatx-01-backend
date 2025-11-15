@@ -1,41 +1,37 @@
 package chatuc
 
 import (
-	authdomain "chatx-01-backend/internal/auth/domain"
-	"chatx-01-backend/internal/chat/domain"
-	"chatx-01-backend/internal/portal/auth"
-	"chatx-01-backend/pkg/errs"
 	"context"
 	"errors"
 	"time"
+
+	"chatx-01-backend/internal/chat/domain"
+	"chatx-01-backend/internal/portal/auth"
+	"chatx-01-backend/pkg/errs"
 )
 
 type useCase struct {
 	chatRepo    domain.ChatRepository
 	messageRepo domain.MessageRepository
-	userRepo    authdomain.UserRepository
-	authPr      auth.Auth
+	authPortal  auth.Portal
 }
 
-// New creates a new chat use case.
 func New(
 	chatRepo domain.ChatRepository,
 	messageRepo domain.MessageRepository,
-	userRepo authdomain.UserRepository,
-	authPr auth.Auth,
+	authPortal auth.Portal,
 ) UseCase {
 	return &useCase{
 		chatRepo:    chatRepo,
 		messageRepo: messageRepo,
-		userRepo:    userRepo,
-		authPr:      authPr,
+		authPortal:  authPortal,
 	}
 }
 
 func (uc *useCase) GetDMsList(ctx context.Context, req GetDMsListReq) (*GetDMsListResp, error) {
 	const op = "chatuc.GetDMsList"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -47,15 +43,61 @@ func (uc *useCase) GetDMsList(ctx context.Context, req GetDMsListReq) (*GetDMsLi
 		return nil, errs.Wrap(op, err)
 	}
 
-	// TODO: Repository should return enriched data with user info, last message, unread count
-	// For now returning placeholder structure
-	dmItems := make([]DMListItem, len(chats))
-	for i, chat := range chats {
-		dmItems[i] = DMListItem{
-			ChatID: chat.ID,
-			// OtherUserID, OtherUsername, LastMessage etc. need to be populated
-			// This requires complex JOIN queries in repository
+	dmItems := make([]DMListItem, 0, len(chats))
+	for _, chat := range chats {
+		participants, err := uc.chatRepo.GetParticipants(ctx, chat.ID)
+		if err != nil {
+			return nil, errs.Wrap(op, err)
 		}
+
+		var otherUserID int
+		for _, p := range participants {
+			if p.UserID != userID {
+				otherUserID = p.UserID
+				break
+			}
+		}
+
+		if otherUserID == 0 {
+			continue
+		}
+
+		otherUser, err := uc.authPortal.GetUserByID(ctx, otherUserID)
+		if err != nil {
+			return nil, errs.Wrap(op, err)
+		}
+
+		var lastMessageText *string
+		var lastMessageSentAt *string
+		lastMsg, err := uc.messageRepo.GetLastMessage(ctx, chat.ID)
+		if err != nil && !errors.Is(err, errs.ErrNotFound) {
+			return nil, errs.Wrap(op, err)
+		}
+		if lastMsg != nil {
+			lastMessageText = &lastMsg.Content
+			sentAt := lastMsg.SentAt.Format(time.RFC3339)
+			lastMessageSentAt = &sentAt
+		}
+
+		unreadCount, err := uc.messageRepo.GetUnreadCountByChat(ctx, chat.ID, userID)
+		if err != nil {
+			return nil, errs.Wrap(op, err)
+		}
+
+		otherUserImage := ""
+		if otherUser.ImagePath != nil {
+			otherUserImage = *otherUser.ImagePath
+		}
+
+		dmItems = append(dmItems, DMListItem{
+			ChatID:            chat.ID,
+			OtherUserID:       otherUser.ID,
+			OtherUsername:     otherUser.Username,
+			OtherUserImage:    otherUserImage,
+			LastMessageText:   lastMessageText,
+			LastMessageSentAt: lastMessageSentAt,
+			UnreadCount:       unreadCount,
+		})
 	}
 
 	return &GetDMsListResp{
@@ -69,7 +111,7 @@ func (uc *useCase) GetDMsList(ctx context.Context, req GetDMsListReq) (*GetDMsLi
 func (uc *useCase) GetGroupsList(ctx context.Context, req GetGroupsListReq) (*GetGroupsListResp, error) {
 	const op = "chatuc.GetGroupsList"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -81,16 +123,39 @@ func (uc *useCase) GetGroupsList(ctx context.Context, req GetGroupsListReq) (*Ge
 		return nil, errs.Wrap(op, err)
 	}
 
-	// TODO: Repository should return enriched data with participant count, last message, unread count
-	groupItems := make([]GroupListItem, len(chats))
-	for i, chat := range chats {
-		groupItems[i] = GroupListItem{
-			ChatID:    chat.ID,
-			Name:      chat.Name,
-			CreatorID: chat.CreatorID,
-			// ParticipantCount, LastMessage etc. need to be populated
-			// This requires complex JOIN queries in repository
+	groupItems := make([]GroupListItem, 0, len(chats))
+	for _, chat := range chats {
+		participants, err := uc.chatRepo.GetParticipants(ctx, chat.ID)
+		if err != nil {
+			return nil, errs.Wrap(op, err)
 		}
+
+		var lastMessageText *string
+		var lastMessageSentAt *string
+		lastMsg, err := uc.messageRepo.GetLastMessage(ctx, chat.ID)
+		if err != nil && !errors.Is(err, errs.ErrNotFound) {
+			return nil, errs.Wrap(op, err)
+		}
+		if lastMsg != nil {
+			lastMessageText = &lastMsg.Content
+			sentAt := lastMsg.SentAt.Format(time.RFC3339)
+			lastMessageSentAt = &sentAt
+		}
+
+		unreadCount, err := uc.messageRepo.GetUnreadCountByChat(ctx, chat.ID, userID)
+		if err != nil {
+			return nil, errs.Wrap(op, err)
+		}
+
+		groupItems = append(groupItems, GroupListItem{
+			ChatID:            chat.ID,
+			Name:              chat.Name,
+			CreatorID:         chat.CreatorID,
+			ParticipantCount:  len(participants),
+			LastMessageText:   lastMessageText,
+			LastMessageSentAt: lastMessageSentAt,
+			UnreadCount:       unreadCount,
+		})
 	}
 
 	return &GetGroupsListResp{
@@ -104,7 +169,7 @@ func (uc *useCase) GetGroupsList(ctx context.Context, req GetGroupsListReq) (*Ge
 func (uc *useCase) GetChat(ctx context.Context, req GetChatReq) (*GetChatResp, error) {
 	const op = "chatuc.GetChat"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -133,15 +198,15 @@ func (uc *useCase) GetChat(ctx context.Context, req GetChatReq) (*GetChatResp, e
 	// Enrich with user data
 	participantDTOs := make([]ChatParticipantDTO, len(participants))
 	for i, p := range participants {
-		user, err := uc.userRepo.GetByID(ctx, p.UserID)
+		u, err := uc.authPortal.GetUserByID(ctx, p.UserID)
 		if err != nil {
 			return nil, errs.Wrap(op, err)
 		}
 
 		participantDTOs[i] = ChatParticipantDTO{
-			UserID:    user.ID,
-			Username:  user.Username,
-			ImagePath: user.ImagePath,
+			UserID:    u.ID,
+			Username:  u.Username,
+			ImagePath: u.ImagePath,
 			JoinedAt:  p.JoinedAt.Format(time.RFC3339),
 		}
 	}
@@ -159,7 +224,7 @@ func (uc *useCase) GetChat(ctx context.Context, req GetChatReq) (*GetChatResp, e
 func (uc *useCase) CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp, error) {
 	const op = "chatuc.CreateDM"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -171,13 +236,12 @@ func (uc *useCase) CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp
 	}
 
 	// Check if other user exists
-	_, err = uc.userRepo.GetByID(ctx, req.OtherUserID)
+	exists, err := uc.authPortal.UserExists(ctx, req.OtherUserID)
 	if err != nil {
-		return nil, errs.ReplaceOn(
-			err,
-			errs.ErrNotFound,
-			errs.NewNotFoundError("other_user_id", "user not found"),
-		)
+		return nil, errs.Wrap(op, err)
+	}
+	if !exists {
+		return nil, errs.NewNotFoundError("other_user_id", "user not found")
 	}
 
 	// Check if DM already exists
@@ -226,7 +290,7 @@ func (uc *useCase) CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp
 func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*CreateGroupResp, error) {
 	const op = "chatuc.CreateGroup"
 
-	authUser, err := uc.authPr.GetAuthUser(ctx)
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -234,13 +298,12 @@ func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*Create
 
 	// Validate all participant IDs exist
 	for _, participantID := range req.ParticipantIDs {
-		_, err := uc.userRepo.GetByID(ctx, participantID)
+		exists, err := uc.authPortal.UserExists(ctx, participantID)
 		if err != nil {
-			return nil, errs.ReplaceOn(
-				err,
-				errs.ErrNotFound,
-				errs.NewNotFoundError("participant_ids", "one or more participants not found"),
-			)
+			return nil, errs.Wrap(op, err)
+		}
+		if !exists {
+			return nil, errs.NewNotFoundError("participant_ids", "one or more participants not found")
 		}
 	}
 
