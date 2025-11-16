@@ -64,6 +64,37 @@ func (uc *useCase) CreateUser(ctx context.Context, req CreateUserReq) (*CreateUs
 	}, nil
 }
 
+func (uc *useCase) CreateSuperUser(ctx context.Context, req CreateSuperUserReq) (*CreateSuperUserResp, error) {
+	const op = "useruc.CreateSuperUser"
+
+	passwordHash, err := uc.passwordHasher.Hash(req.Password)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+
+	user := &domain.User{
+		Email:        req.Email,
+		Username:     req.Username,
+		PasswordHash: passwordHash,
+		Role:         domain.RoleAdmin,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	err = uc.userRepo.Create(ctx, user)
+	if err != nil {
+		return nil, errs.ReplaceOn(
+			err,
+			errs.ErrAlreadyExists,
+			errs.NewConflictError("email", "email already exists"),
+		)
+	}
+
+	return &CreateSuperUserResp{
+		UserID: user.ID,
+	}, nil
+}
+
 func (uc *useCase) DeleteUser(ctx context.Context, req DeleteUserReq) error {
 	const op = "useruc.DeleteUser"
 

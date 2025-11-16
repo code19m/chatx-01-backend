@@ -9,6 +9,7 @@ import (
 
 type UseCase interface {
 	CreateUser(ctx context.Context, req CreateUserReq) (*CreateUserResp, error)
+	CreateSuperUser(ctx context.Context, req CreateSuperUserReq) (*CreateSuperUserResp, error)
 	DeleteUser(ctx context.Context, req DeleteUserReq) error
 	GetUser(ctx context.Context, req GetUserReq) (*GetUserResp, error)
 	GetUsersList(ctx context.Context, req GetUsersListReq) (*GetUsersListResp, error)
@@ -38,6 +39,35 @@ func (req CreateUserReq) Validate() error {
 
 type CreateUserResp struct {
 	UserID int `json:"user_id"`
+}
+
+type CreateSuperUserReq struct {
+	Email    string
+	Username string
+	Password string
+}
+
+func (req CreateSuperUserReq) Validate() error {
+	var verr error
+
+	if err := val.ValidateEmail(req.Email); err != nil {
+		verr = errs.AddFieldError(verr, "email", err.Error())
+	}
+	if err := val.ValidateUsername(req.Username); err != nil {
+		verr = errs.AddFieldError(verr, "username", err.Error())
+	}
+	if req.Password == "" {
+		verr = errs.AddFieldError(verr, "password", "password is required")
+	}
+	if len(req.Password) < 8 {
+		verr = errs.AddFieldError(verr, "password", "password must be at least 8 characters")
+	}
+
+	return verr
+}
+
+type CreateSuperUserResp struct {
+	UserID int
 }
 
 type DeleteUserReq struct {
