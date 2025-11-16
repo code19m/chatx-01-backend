@@ -44,15 +44,15 @@ func (c *ctrl) registerHandlers() {
 	// Chat endpoints
 	c.register(http.MethodGet, "/chats/dms", http.HandlerFunc(c.getDMsList), c.authPr.RequireAuth())
 	c.register(http.MethodGet, "/chats/groups", http.HandlerFunc(c.getGroupsList), c.authPr.RequireAuth())
-	c.register(http.MethodGet, "/chats/{chatId}", http.HandlerFunc(c.getChat), c.authPr.RequireAuth())
+	c.register(http.MethodGet, "/chats/{chat_id}", http.HandlerFunc(c.getChat), c.authPr.RequireAuth())
 	c.register(http.MethodPost, "/chats/dms", http.HandlerFunc(c.createDM), c.authPr.RequireAuth())
 	c.register(http.MethodPost, "/chats/groups", http.HandlerFunc(c.createGroup), c.authPr.RequireAuth())
 
 	// Message endpoints
-	c.register(http.MethodGet, "/chats/{chatId}/messages", http.HandlerFunc(c.getMessagesList), c.authPr.RequireAuth())
+	c.register(http.MethodGet, "/chats/{chat_id}/messages", http.HandlerFunc(c.getMessagesList), c.authPr.RequireAuth())
 	c.register(http.MethodPost, "/messages", http.HandlerFunc(c.sendMessage), c.authPr.RequireAuth())
-	c.register(http.MethodPut, "/messages/{messageId}", http.HandlerFunc(c.editMessage), c.authPr.RequireAuth())
-	c.register(http.MethodDelete, "/messages/{messageId}", http.HandlerFunc(c.deleteMessage), c.authPr.RequireAuth())
+	c.register(http.MethodPut, "/messages/{message_id}", http.HandlerFunc(c.editMessage), c.authPr.RequireAuth())
+	c.register(http.MethodDelete, "/messages/{message_id}", http.HandlerFunc(c.deleteMessage), c.authPr.RequireAuth())
 
 	// Notification endpoints
 	c.register(
@@ -63,7 +63,7 @@ func (c *ctrl) registerHandlers() {
 	)
 	c.register(
 		http.MethodGet,
-		"/chats/{chatId}/unread",
+		"/chats/{chat_id}/unread",
 		http.HandlerFunc(c.getUnreadMessagesCountByChat),
 		c.authPr.RequireAuth(),
 	)

@@ -13,6 +13,8 @@ Base URL: `http://localhost:9900` (configurable via `SERVER_ADDR` env variable)
 - [Chat Endpoints](#chat-endpoints)
 - [Message Endpoints](#message-endpoints)
 - [Notification Endpoints](#notification-endpoints)
+- [Data Models](#data-models)
+- [Environment Configuration](#environment-configuration)
 
 ---
 
@@ -62,13 +64,13 @@ List endpoints support pagination via query parameters:
 
 All timestamps are returned in RFC3339 format:
 
-```bash
+```
 2025-01-15T14:30:00Z
 ```
 
 ### Nullable Fields
 
-Fields that can be null are marked with `*` in type definitions and use `omitempty` in JSON responses.
+Fields that can be `null` are marked with `*` in type definitions and use `omitempty` in JSON responses.
 
 ---
 
@@ -132,7 +134,7 @@ All error responses follow this format:
 
 ## Authentication Endpoints
 
-### POST /auth/auth/login
+### POST /auth/login
 
 Login with email and password to receive access and refresh tokens.
 
@@ -173,7 +175,7 @@ Login with email and password to receive access and refresh tokens.
 
 ---
 
-### POST /auth/auth/logout
+### POST /auth/logout
 
 Logout the current user (invalidates tokens on client side).
 
@@ -207,7 +209,7 @@ Create a new user (admin only).
 
 - `email`: Valid email format
 - `username`: 3-30 characters, alphanumeric and underscore only
-- `password`: Minimum 8 characters (enforced at creation)
+- `password`: Required
 
 **Success Response (201 Created):**
 
@@ -385,7 +387,7 @@ Get list of direct message conversations.
 
 ```json
 {
-  "chats": [
+  "dms": [
     {
       "chat_id": 1,
       "other_user_id": 2,
@@ -424,7 +426,7 @@ Get list of group conversations.
 
 ```json
 {
-  "chats": [
+  "groups": [
     {
       "chat_id": 10,
       "name": "Team Chat",
@@ -507,7 +509,7 @@ Create a new direct message conversation.
 
 **Validation Rules:**
 
-- `other_user_id`: Must be > 0 and different from current user
+- `other_user_id`: Must be > 0
 
 **Success Response (201 Created):**
 
@@ -520,7 +522,7 @@ Create a new direct message conversation.
 **Notes:**
 
 - If a DM already exists between the two users, returns the existing chat_id
-- Cannot create DM with yourself
+- Cannot create DM with yourself (enforced at business logic layer)
 
 ---
 
@@ -585,12 +587,11 @@ Get paginated messages for a specific chat.
       "message_id": 101,
       "chat_id": 1,
       "sender_id": 2,
-      "sender_username": "janedoe",
-      "sender_image_path": "path/to/jane.jpg",
+      "sender_name": "janedoe",
+      "sender_image": "path/to/jane.jpg",
       "content": "Hello there!",
       "sent_at": "2025-01-15T14:30:00Z",
-      "edited_at": null,
-      "is_deleted": false
+      "edited_at": null
     }
   ],
   "total": 250,
@@ -603,8 +604,8 @@ Get paginated messages for a specific chat.
 
 - Messages are ordered by `sent_at` descending (newest first)
 - `edited_at` is `null` if message was never edited
-- `sender_image_path` can be `null`
-- Deleted messages show `is_deleted: true` with empty content
+- `sender_image` can be `null`
+- Deleted messages are not returned in the list
 
 ---
 
@@ -685,7 +686,7 @@ Delete a message.
 **Notes:**
 
 - Only the message sender can delete their messages
-- Soft delete: marks `is_deleted: true`, clears content
+- Soft delete: message is removed from listings
 
 ---
 
@@ -808,22 +809,50 @@ Get online status for multiple users.
 ```typescript
 interface User {
   user_id: number;
-  username: string;        // 3-30 chars, alphanumeric + underscore
-  email: string;           // Valid email format
+  username: string; // 3-30 chars, alphanumeric + underscore
+  email: string; // Valid email format
   role: "user" | "admin";
   image_path: string | null;
-  created_at: string;      // RFC3339 timestamp
+  created_at: string; // RFC3339 timestamp
 }
 ```
 
-### Chat
+### Direct Message List Item
+
+```typescript
+interface DMListItem {
+  chat_id: number;
+  other_user_id: number;
+  other_username: string;
+  other_user_image: string | null;
+  last_message_text: string | null;
+  last_message_sent_at: string | null;
+  unread_count: number;
+}
+```
+
+### Group List Item
+
+```typescript
+interface GroupListItem {
+  chat_id: number;
+  name: string;
+  creator_id: number;
+  participant_count: number;
+  last_message_text: string | null;
+  last_message_sent_at: string | null;
+  unread_count: number;
+}
+```
+
+### Chat Detail
 
 ```typescript
 interface Chat {
   chat_id: number;
   type: "direct" | "group";
-  name: string;                    // Empty for DMs
-  creator_id: number;              // 0 for DMs
+  name: string; // Empty for DMs
+  creator_id: number; // 0 for DMs
   participants: ChatParticipant[];
   created_at: string;
 }
@@ -843,12 +872,21 @@ interface Message {
   message_id: number;
   chat_id: number;
   sender_id: number;
-  sender_username: string;
-  sender_image_path: string | null;
-  content: string;              // Empty if deleted
+  sender_name: string;
+  sender_image: string | null;
+  content: string;
   sent_at: string;
   edited_at: string | null;
-  is_deleted: boolean;
+}
+```
+
+### User Online Status
+
+```typescript
+interface UserOnlineStatus {
+  user_id: number;
+  is_online: boolean;
+  last_seen: string | null; // null if currently online
 }
 ```
 
@@ -858,18 +896,18 @@ interface Message {
 
 ### Authentication Flow
 
-1. Call `POST /auth/auth/login` to get tokens
+1. Call `POST /auth/login` to get tokens
 2. Store `access_token` and `refresh_token` securely (localStorage/sessionStorage)
 3. Include `Authorization: Bearer <access_token>` header in all authenticated requests
 4. When access token expires (401 response), implement token refresh logic
-5. Call `POST /auth/auth/logout` on user logout
+5. Call `POST /auth/logout` on user logout
 
 ### Real-time Features
 
 This API does not currently include WebSocket endpoints. Consider implementing:
 
-- Polling for new messages (GET /chat/chats/{chat_id}/messages)
-- Polling for unread counts (GET /chat/notifications/unread)
+- Polling for new messages (`GET /chat/chats/{chat_id}/messages`)
+- Polling for unread counts (`GET /chat/notifications/unread`)
 - Or add WebSocket support for real-time message delivery
 
 ### Image Upload Flow
@@ -903,7 +941,7 @@ This API does not currently include WebSocket endpoints. Consider implementing:
 **Login:**
 
 ```bash
-curl -X POST http://localhost:9900/auth/auth/login \
+curl -X POST http://localhost:9900/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"password123"}'
 ```
@@ -915,6 +953,13 @@ curl -X GET http://localhost:9900/auth/users/me \
   -H "Authorization: Bearer <your_token>"
 ```
 
+**Get DM List:**
+
+```bash
+curl -X GET "http://localhost:9900/chat/chats/dms?page=0&limit=20" \
+  -H "Authorization: Bearer <your_token>"
+```
+
 **Send Message:**
 
 ```bash
@@ -923,5 +968,58 @@ curl -X POST http://localhost:9900/chat/messages \
   -H "Content-Type: application/json" \
   -d '{"chat_id":1,"content":"Hello!"}'
 ```
+
+**Get Chat Messages:**
+
+```bash
+curl -X GET "http://localhost:9900/chat/chats/1/messages?page=0&limit=50" \
+  -H "Authorization: Bearer <your_token>"
+```
+
+---
+
+## Quick Reference: All Endpoints
+
+### Authentication & Users
+
+| Method | Endpoint                | Auth  | Description          |
+| ------ | ----------------------- | ----- | -------------------- |
+| POST   | /auth/login             | No    | Login                |
+| POST   | /auth/logout            | Yes   | Logout               |
+| POST   | /auth/users             | Admin | Create user          |
+| GET    | /auth/users             | Admin | List users           |
+| GET    | /auth/users/{user_id}   | Admin | Get user details     |
+| DELETE | /auth/users/{user_id}   | Admin | Delete user          |
+| GET    | /auth/users/me          | Yes   | Get current user     |
+| PUT    | /auth/users/me/password | Yes   | Change password      |
+| PUT    | /auth/users/me/image    | Yes   | Update profile image |
+
+### Chats
+
+| Method | Endpoint              | Auth | Description           |
+| ------ | --------------------- | ---- | --------------------- |
+| GET    | /chat/chats/dms       | Yes  | List DM conversations |
+| GET    | /chat/chats/groups    | Yes  | List group chats      |
+| GET    | /chat/chats/{chat_id} | Yes  | Get chat details      |
+| POST   | /chat/chats/dms       | Yes  | Create DM             |
+| POST   | /chat/chats/groups    | Yes  | Create group chat     |
+
+### Messages
+
+| Method | Endpoint                       | Auth | Description    |
+| ------ | ------------------------------ | ---- | -------------- |
+| GET    | /chat/chats/{chat_id}/messages | Yes  | List messages  |
+| POST   | /chat/messages                 | Yes  | Send message   |
+| PUT    | /chat/messages/{message_id}    | Yes  | Edit message   |
+| DELETE | /chat/messages/{message_id}    | Yes  | Delete message |
+
+### Notifications
+
+| Method | Endpoint                     | Auth | Description             |
+| ------ | ---------------------------- | ---- | ----------------------- |
+| GET    | /chat/notifications/unread   | Yes  | Total unread count      |
+| GET    | /chat/chats/{chat_id}/unread | Yes  | Chat unread count       |
+| POST   | /chat/chats/read             | Yes  | Mark messages as read   |
+| POST   | /chat/users/online-status    | Yes  | Get users online status |
 
 ---
