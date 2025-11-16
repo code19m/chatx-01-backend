@@ -25,7 +25,7 @@ type ChatParticipant struct {
 	UserID            int
 	JoinedAt          time.Time
 	LastReadMessageID *int
-	LastReadAt        *time.Time // DENORMALIZED
+	LastReadAt        *time.Time // Denormalized for efficiency
 }
 
 // ChatRepository defines the interface for chat data access.
@@ -41,11 +41,11 @@ type ChatRepository interface {
 
 	// GetDMsListByUser returns paginated list of direct message chats for a user.
 	// Returns chats slice, total count, and error.
-	GetDMsListByUser(ctx context.Context, userID int, offset, limit int) ([]*Chat, int, error)
+	GetDMsListByUser(ctx context.Context, userID int, offset, limit int) ([]Chat, int, error)
 
 	// GetGroupsListByUser returns paginated list of group chats for a user.
 	// Returns chats slice, total count, and error.
-	GetGroupsListByUser(ctx context.Context, userID int, offset, limit int) ([]*Chat, int, error)
+	GetGroupsListByUser(ctx context.Context, userID int, offset, limit int) ([]Chat, int, error)
 
 	// AddParticipant adds a user to a chat.
 	AddParticipant(ctx context.Context, participant *ChatParticipant) error
@@ -54,7 +54,7 @@ type ChatRepository interface {
 	RemoveParticipant(ctx context.Context, chatID, userID int) error
 
 	// GetParticipants retrieves all participants of a chat.
-	GetParticipants(ctx context.Context, chatID int) ([]*ChatParticipant, error)
+	GetParticipants(ctx context.Context, chatID int) ([]ChatParticipant, error)
 
 	// IsParticipant checks if a user is a participant of a chat.
 	IsParticipant(ctx context.Context, chatID, userID int) (bool, error)

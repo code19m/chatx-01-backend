@@ -28,9 +28,9 @@ type MessageRepository interface {
 	// Delete removes a message by its ID.
 	Delete(ctx context.Context, id int) error
 
-	// List returns paginated list of messages in a chat.
+	// ListWithCount returns paginated list of messages in a chat.
 	// Returns messages slice, total count, and error.
-	List(ctx context.Context, chatID int, offset, limit int) ([]*Message, int, error)
+	ListWithCount(ctx context.Context, chatID int, offset, limit int) ([]Message, int, error)
 
 	// GetLastMessage returns the most recent message in a chat, or nil if no messages exist.
 	GetLastMessage(ctx context.Context, chatID int) (*Message, error)

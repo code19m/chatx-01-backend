@@ -114,7 +114,11 @@ func (r *PgMessageRepo) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *PgMessageRepo) List(ctx context.Context, chatID int, offset, limit int) ([]*domain.Message, int, error) {
+func (r *PgMessageRepo) ListWithCount(
+	ctx context.Context,
+	chatID int,
+	offset, limit int,
+) ([]domain.Message, int, error) {
 	const op = "pgmessage.List"
 
 	var totalCount int
@@ -137,9 +141,9 @@ func (r *PgMessageRepo) List(ctx context.Context, chatID int, offset, limit int)
 	}
 	defer rows.Close()
 
-	messages := make([]*domain.Message, 0)
+	messages := make([]domain.Message, 0)
 	for rows.Next() {
-		message := &domain.Message{}
+		message := domain.Message{}
 		err := rows.Scan(
 			&message.ID,
 			&message.ChatID,

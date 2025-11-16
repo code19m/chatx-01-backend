@@ -92,7 +92,7 @@ func (r *PgChatRepo) GetDMByParticipants(ctx context.Context, userID1, userID2 i
 	return chat, nil
 }
 
-func (r *PgChatRepo) GetDMsListByUser(ctx context.Context, userID int, offset, limit int) ([]*domain.Chat, int, error) {
+func (r *PgChatRepo) GetDMsListByUser(ctx context.Context, userID int, offset, limit int) ([]domain.Chat, int, error) {
 	const op = "pgchat.GetDMsListByUser"
 
 	var totalCount int
@@ -121,9 +121,9 @@ func (r *PgChatRepo) GetDMsListByUser(ctx context.Context, userID int, offset, l
 	}
 	defer rows.Close()
 
-	chats := make([]*domain.Chat, 0)
+	chats := make([]domain.Chat, 0)
 	for rows.Next() {
-		chat := &domain.Chat{}
+		chat := domain.Chat{}
 		err := rows.Scan(
 			&chat.ID,
 			&chat.Type,
@@ -144,7 +144,11 @@ func (r *PgChatRepo) GetDMsListByUser(ctx context.Context, userID int, offset, l
 	return chats, totalCount, nil
 }
 
-func (r *PgChatRepo) GetGroupsListByUser(ctx context.Context, userID int, offset, limit int) ([]*domain.Chat, int, error) {
+func (r *PgChatRepo) GetGroupsListByUser(
+	ctx context.Context,
+	userID int,
+	offset, limit int,
+) ([]domain.Chat, int, error) {
 	const op = "pgchat.GetGroupsListByUser"
 
 	var totalCount int
@@ -173,9 +177,9 @@ func (r *PgChatRepo) GetGroupsListByUser(ctx context.Context, userID int, offset
 	}
 	defer rows.Close()
 
-	chats := make([]*domain.Chat, 0)
+	chats := make([]domain.Chat, 0)
 	for rows.Next() {
-		chat := &domain.Chat{}
+		chat := domain.Chat{}
 		err := rows.Scan(
 			&chat.ID,
 			&chat.Type,
@@ -237,7 +241,7 @@ func (r *PgChatRepo) RemoveParticipant(ctx context.Context, chatID, userID int) 
 	return nil
 }
 
-func (r *PgChatRepo) GetParticipants(ctx context.Context, chatID int) ([]*domain.ChatParticipant, error) {
+func (r *PgChatRepo) GetParticipants(ctx context.Context, chatID int) ([]domain.ChatParticipant, error) {
 	const op = "pgchat.GetParticipants"
 
 	query := `
@@ -252,9 +256,9 @@ func (r *PgChatRepo) GetParticipants(ctx context.Context, chatID int) ([]*domain
 	}
 	defer rows.Close()
 
-	participants := make([]*domain.ChatParticipant, 0)
+	participants := make([]domain.ChatParticipant, 0)
 	for rows.Next() {
-		participant := &domain.ChatParticipant{}
+		participant := domain.ChatParticipant{}
 		err := rows.Scan(
 			&participant.ChatID,
 			&participant.UserID,

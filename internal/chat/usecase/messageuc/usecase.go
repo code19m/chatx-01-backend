@@ -47,7 +47,7 @@ func (uc *useCase) GetMessagesList(ctx context.Context, req GetMessagesListReq) 
 	}
 
 	offset := req.Page * req.Limit
-	messages, total, err := uc.messageRepo.List(ctx, req.ChatID, offset, req.Limit)
+	messages, total, err := uc.messageRepo.ListWithCount(ctx, req.ChatID, offset, req.Limit)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
