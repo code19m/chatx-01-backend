@@ -42,6 +42,9 @@ type UserRepository interface {
 	// GetByEmail retrieves a user by their email address.
 	GetByEmail(ctx context.Context, email string) (*User, error)
 
+	// GetByUsername retrieves a user by their username.
+	GetByUsername(ctx context.Context, username string) (*User, error)
+
 	// Update updates an existing user's information.
 	Update(ctx context.Context, user *User) error
 
@@ -51,4 +54,8 @@ type UserRepository interface {
 	// ListWithCount returns paginated list of users.
 	// Returns users slice, total count, and error.
 	ListWithCount(ctx context.Context, offset, limit int) ([]*User, int, error)
+
+	// SearchByUsernameWithCount returns paginated list of users filtered by username search.
+	// Returns users slice, total count, and error.
+	SearchByUsernameWithCount(ctx context.Context, username string, offset, limit int) ([]*User, int, error)
 }

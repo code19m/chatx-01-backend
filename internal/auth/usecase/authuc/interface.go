@@ -13,15 +13,15 @@ type UseCase interface {
 }
 
 type LoginReq struct {
-	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
 func (req LoginReq) Validate() error {
 	var verr error
 
-	if err := val.ValidateEmail(req.Email); err != nil {
-		verr = errs.AddFieldError(verr, "email", err.Error())
+	if err := val.ValidateUsername(req.Username); err != nil {
+		verr = errs.AddFieldError(verr, "username", err.Error())
 	}
 	if req.Password == "" {
 		verr = errs.AddFieldError(verr, "password", "password is required")

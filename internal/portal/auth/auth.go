@@ -22,6 +22,9 @@ type Portal interface {
 	// GetAuthUser retrieves the authenticated user from context.
 	GetAuthUser(ctx context.Context) (AuthenticatedUser, error)
 
+	// SetAuthUser sets the authenticated user in context.
+	SetAuthUser(ctx context.Context, au AuthenticatedUser) context.Context
+
 	// GetUserByID retrieves a user by their ID.
 	GetUserByID(ctx context.Context, id int) (*User, error)
 

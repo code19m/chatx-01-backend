@@ -29,7 +29,7 @@ func New(
 func (uc *useCase) Login(ctx context.Context, req LoginReq) (*LoginResp, error) {
 	const op = "authuc.Login"
 
-	user, err := uc.userRepo.GetByEmail(ctx, req.Email)
+	user, err := uc.userRepo.GetByUsername(ctx, req.Username)
 	if err != nil {
 		return nil, errs.ReplaceOn(err, errs.ErrNotFound, domain.ErrInvalidCredentials)
 	}

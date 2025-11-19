@@ -85,3 +85,19 @@ func (c *ctrl) createGroup(w http.ResponseWriter, r *http.Request) {
 
 	httptools.WriteResponse(http.StatusCreated, w, resp)
 }
+
+func (c *ctrl) checkDMExists(w http.ResponseWriter, r *http.Request) {
+	req, err := httptools.BindRequest[chatuc.CheckDMExistsReq](r)
+	if err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	resp, err := c.chatUsecase.CheckDMExists(r.Context(), req)
+	if err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	httptools.WriteResponse(http.StatusOK, w, resp)
+}

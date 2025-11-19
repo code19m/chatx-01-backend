@@ -11,6 +11,7 @@ type UseCase interface {
 	GetChat(ctx context.Context, req GetChatReq) (*GetChatResp, error)
 	CreateDM(ctx context.Context, req CreateDMReq) (*CreateDMResp, error)
 	CreateGroup(ctx context.Context, req CreateGroupReq) (*CreateGroupResp, error)
+	CheckDMExists(ctx context.Context, req CheckDMExistsReq) (*CheckDMExistsResp, error)
 }
 
 type GetDMsListReq struct {
@@ -154,4 +155,23 @@ func (req CreateGroupReq) Validate() error {
 
 type CreateGroupResp struct {
 	ChatID int `json:"chat_id"`
+}
+
+type CheckDMExistsReq struct {
+	OtherUserID int `query:"other_user_id"`
+}
+
+func (req CheckDMExistsReq) Validate() error {
+	var verr error
+
+	if req.OtherUserID <= 0 {
+		verr = errs.AddFieldError(verr, "other_user_id", "invalid other user id")
+	}
+
+	return verr
+}
+
+type CheckDMExistsResp struct {
+	Exists bool `json:"exists"`
+	ChatID *int `json:"chat_id,omitempty"`
 }

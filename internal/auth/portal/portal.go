@@ -3,7 +3,6 @@ package portal
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -46,6 +45,10 @@ func (p *Portal) GetAuthUser(ctx context.Context) (auth.AuthenticatedUser, error
 		return auth.AuthenticatedUser{}, errNoAuthUser
 	}
 	return au, nil
+}
+
+func (p *Portal) SetAuthUser(ctx context.Context, au auth.AuthenticatedUser) context.Context {
+	return context.WithValue(ctx, authUserKey, au)
 }
 
 func (p *Portal) GetUserByID(ctx context.Context, id int) (*auth.User, error) {
@@ -108,42 +111,13 @@ func (p *Portal) UserExists(ctx context.Context, id int) (bool, error) {
 func (p *Portal) RequireAuth() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Extract token from Authorization header
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				http.Error(w, "unauthorized: missing authorization header", http.StatusUnauthorized)
-				return
-			}
-
-			// Check for Bearer prefix
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) != 2 || parts[0] != "Bearer" {
-				http.Error(w, "unauthorized: invalid authorization header format", http.StatusUnauthorized)
-				return
-			}
-
-			tokenString := parts[1]
-
-			// Validate token
-			claims, err := p.tokenGenerator.Validate(tokenString)
+			au, err := p.authenticate(r)
 			if err != nil {
-				http.Error(w, "unauthorized: invalid token", http.StatusUnauthorized)
+				http.Error(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
 
-			// Check token type (should be access token)
-			if claims.Type != string(token.TokenTypeAccess) {
-				http.Error(w, "unauthorized: invalid token type", http.StatusUnauthorized)
-				return
-			}
-
-			// Add authenticated user to context
-			authUser := auth.AuthenticatedUser{
-				ID:   claims.UserID,
-				Role: claims.Role,
-			}
-
-			ctx := context.WithValue(r.Context(), authUserKey, authUser)
+			ctx := p.SetAuthUser(r.Context(), au)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -152,15 +126,13 @@ func (p *Portal) RequireAuth() func(next http.Handler) http.Handler {
 func (p *Portal) RequireAdmin() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			p.RequireAuth()(next).ServeHTTP(w, r)
-
-			authUser, err := p.GetAuthUser(r.Context())
+			au, err := p.authenticate(r)
 			if err != nil {
-				http.Error(w, fmt.Sprintf("could not get authenticated user: %v", err), http.StatusInternalServerError)
+				http.Error(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
 
-			if authUser.Role != domain.RoleAdmin.String() {
+			if au.Role != domain.RoleAdmin.String() {
 				http.Error(w, "forbidden: insufficient permissions", http.StatusForbidden)
 				return
 			}
@@ -168,4 +140,38 @@ func (p *Portal) RequireAdmin() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (p *Portal) authenticate(r *http.Request) (auth.AuthenticatedUser, error) {
+	var au auth.AuthenticatedUser
+
+	// Extract token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return au, errors.New("unauthorized: missing authorization header")
+	}
+
+	// Check for Bearer prefix
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return au, errors.New("unauthorized: invalid authorization header format")
+	}
+
+	tokenString := parts[1]
+
+	// Validate token
+	claims, err := p.tokenGenerator.Validate(tokenString)
+	if err != nil {
+		return au, errors.New("unauthorized: invalid token")
+	}
+
+	// Check token type (should be access token)
+	if claims.Type != string(token.TokenTypeAccess) {
+		return au, errors.New("unauthorized: invalid token type")
+	}
+
+	au.ID = claims.UserID
+	au.Role = claims.Role
+
+	return au, nil
 }

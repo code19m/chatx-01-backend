@@ -45,8 +45,8 @@ func (c *ctrl) registerHandlers() {
 
 	// user endpoints
 	c.register(http.MethodPost, "/users", http.HandlerFunc(c.createUser), c.authPr.RequireAdmin())
-	c.register(http.MethodGet, "/users", http.HandlerFunc(c.getUsersList), c.authPr.RequireAdmin())
-	c.register(http.MethodGet, "/users/{user_id}", http.HandlerFunc(c.getUser), c.authPr.RequireAdmin())
+	c.register(http.MethodGet, "/users", http.HandlerFunc(c.getUsersList), c.authPr.RequireAuth())
+	c.register(http.MethodGet, "/users/{user_id}", http.HandlerFunc(c.getUser), c.authPr.RequireAuth())
 	c.register(http.MethodDelete, "/users/{user_id}", http.HandlerFunc(c.deleteUser), c.authPr.RequireAdmin())
 	c.register(http.MethodGet, "/users/me", http.HandlerFunc(c.getMe), c.authPr.RequireAuth())
 	c.register(http.MethodPut, "/users/me/password", http.HandlerFunc(c.changePassword), c.authPr.RequireAuth())

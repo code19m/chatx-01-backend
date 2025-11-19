@@ -99,6 +99,32 @@ func (r *PgUserRepo) GetByEmail(ctx context.Context, email string) (*domain.User
 	return user, nil
 }
 
+func (r *PgUserRepo) GetByUsername(ctx context.Context, username string) (*domain.User, error) {
+	const op = "pguser.GetByUsername"
+
+	query := `
+		SELECT id, email, username, password_hash, role, image_path, created_at, updated_at
+		FROM users
+		WHERE username = $1`
+
+	user := &domain.User{}
+	err := r.pool.QueryRow(ctx, query, username).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Username,
+		&user.PasswordHash,
+		&user.Role,
+		&user.ImagePath,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, pg.WrapRepoError(op, err)
+	}
+
+	return user, nil
+}
+
 func (r *PgUserRepo) Update(ctx context.Context, user *domain.User) error {
 	const op = "pguser.Update"
 
@@ -165,6 +191,57 @@ func (r *PgUserRepo) ListWithCount(ctx context.Context, offset, limit int) ([]*d
 		LIMIT $1 OFFSET $2`
 
 	rows, err := r.pool.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, 0, pg.WrapRepoError(op, err)
+	}
+	defer rows.Close()
+
+	users := make([]*domain.User, 0)
+	for rows.Next() {
+		user := &domain.User{}
+		err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.Username,
+			&user.PasswordHash,
+			&user.Role,
+			&user.ImagePath,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, pg.WrapRepoError(op, err)
+		}
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, pg.WrapRepoError(op, err)
+	}
+
+	return users, totalCount, nil
+}
+
+func (r *PgUserRepo) SearchByUsernameWithCount(ctx context.Context, username string, offset, limit int) ([]*domain.User, int, error) {
+	const op = "pguser.SearchByUsernameWithCount"
+
+	searchPattern := "%" + username + "%"
+
+	var totalCount int
+	countQuery := `SELECT COUNT(*) FROM users WHERE username ILIKE $1`
+	err := r.pool.QueryRow(ctx, countQuery, searchPattern).Scan(&totalCount)
+	if err != nil {
+		return nil, 0, pg.WrapRepoError(op, err)
+	}
+
+	query := `
+		SELECT id, email, username, password_hash, role, image_path, created_at, updated_at
+		FROM users
+		WHERE username ILIKE $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`
+
+	rows, err := r.pool.Query(ctx, query, searchPattern, limit, offset)
 	if err != nil {
 		return nil, 0, pg.WrapRepoError(op, err)
 	}

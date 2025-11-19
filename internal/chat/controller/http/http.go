@@ -45,6 +45,7 @@ func (c *ctrl) registerHandlers() {
 	c.register(http.MethodGet, "/chats/dms", http.HandlerFunc(c.getDMsList), c.authPr.RequireAuth())
 	c.register(http.MethodGet, "/chats/groups", http.HandlerFunc(c.getGroupsList), c.authPr.RequireAuth())
 	c.register(http.MethodGet, "/chats/{chat_id}", http.HandlerFunc(c.getChat), c.authPr.RequireAuth())
+	c.register(http.MethodGet, "/chats/dms/check", http.HandlerFunc(c.checkDMExists), c.authPr.RequireAuth())
 	c.register(http.MethodPost, "/chats/dms", http.HandlerFunc(c.createDM), c.authPr.RequireAuth())
 	c.register(http.MethodPost, "/chats/groups", http.HandlerFunc(c.createGroup), c.authPr.RequireAuth())
 

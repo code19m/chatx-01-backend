@@ -348,3 +348,40 @@ func (uc *useCase) CreateGroup(ctx context.Context, req CreateGroupReq) (*Create
 		ChatID: chat.ID,
 	}, nil
 }
+
+func (uc *useCase) CheckDMExists(ctx context.Context, req CheckDMExistsReq) (*CheckDMExistsResp, error) {
+	const op = "chatuc.CheckDMExists"
+
+	authUser, err := uc.authPortal.GetAuthUser(ctx)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+	userID := authUser.ID
+
+	// Check if other user exists
+	exists, err := uc.authPortal.UserExists(ctx, req.OtherUserID)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+	if !exists {
+		return nil, errs.NewNotFoundError("other_user_id", "user not found")
+	}
+
+	// Check if DM exists
+	existingChat, err := uc.chatRepo.GetDMByParticipants(ctx, userID, req.OtherUserID)
+	if err != nil && !errors.Is(err, errs.ErrNotFound) {
+		return nil, errs.Wrap(op, err)
+	}
+
+	if existingChat != nil {
+		return &CheckDMExistsResp{
+			Exists: true,
+			ChatID: &existingChat.ID,
+		}, nil
+	}
+
+	return &CheckDMExistsResp{
+		Exists: false,
+		ChatID: nil,
+	}, nil
+}

@@ -140,7 +140,7 @@ func (a *App) setupHTTPServer() *http.Server {
 	chatHttp.Register(mux, "/chat", a.uc.chat, a.uc.message, a.uc.notification, a.infra.authPortal)
 
 	// global middlewares
-	handler := middleware.CORS(mux)
+	handler := middleware.Recovery(middleware.Logger(middleware.CORS(mux)))
 
 	return &http.Server{
 		Addr:         a.cfg.Server.Addr,
