@@ -137,8 +137,8 @@ func (uc *useCase) GetUsersList(ctx context.Context, req GetUsersListReq) (*GetU
 	var total int
 	var err error
 
-	if req.Username != "" {
-		users, total, err = uc.userRepo.SearchByUsernameWithCount(ctx, req.Username, offset, req.Limit)
+	if req.Search != "" {
+		users, total, err = uc.userRepo.SearchByUsernameWithCount(ctx, req.Search, offset, req.Limit)
 	} else {
 		users, total, err = uc.userRepo.ListWithCount(ctx, offset, req.Limit)
 	}
