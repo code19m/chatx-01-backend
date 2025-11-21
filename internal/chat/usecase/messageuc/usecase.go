@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"chatx-01-backend/internal/chat/controller/ws"
 	"chatx-01-backend/internal/chat/domain"
 	"chatx-01-backend/internal/portal/auth"
 	"chatx-01-backend/pkg/errs"
@@ -13,6 +14,7 @@ type useCase struct {
 	chatRepo    domain.ChatRepository
 	messageRepo domain.MessageRepository
 	authPortal  auth.Portal
+	broadcaster ws.Broadcaster
 }
 
 // New creates a new message use case.
@@ -20,11 +22,13 @@ func New(
 	chatRepo domain.ChatRepository,
 	messageRepo domain.MessageRepository,
 	authPortal auth.Portal,
+	broadcaster ws.Broadcaster,
 ) UseCase {
 	return &useCase{
 		chatRepo:    chatRepo,
 		messageRepo: messageRepo,
 		authPortal:  authPortal,
+		broadcaster: broadcaster,
 	}
 }
 
@@ -116,6 +120,15 @@ func (uc *useCase) SendMessage(ctx context.Context, req SendMessageReq) (*SendMe
 		return nil, errs.Wrap(op, err)
 	}
 
+	// Broadcast new message event via WebSocket
+	uc.broadcaster.BroadcastNewMessage(
+		message.ChatID,
+		message.ID,
+		message.SenderID,
+		message.Content,
+		message.SentAt,
+	)
+
 	return &SendMessageResp{
 		MessageID: message.ID,
 		SentAt:    message.SentAt.Format(time.RFC3339),
@@ -151,6 +164,15 @@ func (uc *useCase) EditMessage(ctx context.Context, req EditMessageReq) error {
 		return errs.Wrap(op, err)
 	}
 
+	// Broadcast message edit event via WebSocket
+	uc.broadcaster.BroadcastEditMessage(
+		message.ChatID,
+		message.ID,
+		message.SenderID,
+		message.Content,
+		now,
+	)
+
 	return nil
 }
 
@@ -174,9 +196,14 @@ func (uc *useCase) DeleteMessage(ctx context.Context, req DeleteMessageReq) erro
 		return errs.Wrap(op, domain.ErrNotMessageOwner)
 	}
 
+	chatID := message.ChatID
+
 	if err := uc.messageRepo.Delete(ctx, req.MessageID); err != nil {
 		return errs.Wrap(op, err)
 	}
+
+	// Broadcast message delete event via WebSocket
+	uc.broadcaster.BroadcastDeleteMessage(chatID, req.MessageID)
 
 	return nil
 }

@@ -61,4 +61,7 @@ type ChatRepository interface {
 
 	// UpdateLastRead updates the last read message for a participant.
 	UpdateLastRead(ctx context.Context, chatID, userID, messageID int) error
+
+	// GetUserChatIDs returns all chat IDs that a user is a participant of.
+	GetUserChatIDs(ctx context.Context, userID int) ([]int, error)
 }

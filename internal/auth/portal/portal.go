@@ -157,10 +157,14 @@ func (p *Portal) authenticate(r *http.Request) (auth.AuthenticatedUser, error) {
 		return au, errors.New("unauthorized: invalid authorization header format")
 	}
 
-	tokenString := parts[1]
+	return p.ValidateToken(r.Context(), parts[1])
+}
+
+func (p *Portal) ValidateToken(ctx context.Context, tokenString string) (auth.AuthenticatedUser, error) {
+	var au auth.AuthenticatedUser
 
 	// Validate token and check Redis
-	claims, err := p.tokenService.ValidateAndCheck(r.Context(), tokenString)
+	claims, err := p.tokenService.ValidateAndCheck(ctx, tokenString)
 	if err != nil {
 		return au, errors.New("unauthorized: invalid or revoked token")
 	}

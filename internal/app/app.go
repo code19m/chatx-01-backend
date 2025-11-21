@@ -12,6 +12,7 @@ import (
 	"chatx-01-backend/internal/chat/usecase/chatuc"
 	"chatx-01-backend/internal/chat/usecase/messageuc"
 	"chatx-01-backend/internal/chat/usecase/notificationuc"
+	"chatx-01-backend/internal/chat/controller/ws"
 	"chatx-01-backend/internal/config"
 	"chatx-01-backend/internal/notifications"
 	notificationUC "chatx-01-backend/internal/notifications/usecase"
@@ -43,6 +44,8 @@ type App struct {
 	redisClient *redis.Client
 	infra       *infrastructure
 	uc          *useCases
+	wsHub       *ws.Hub
+	wsHandler   *ws.Handler
 }
 
 type infrastructure struct {
@@ -70,6 +73,7 @@ type useCases struct {
 
 func Build(ctx context.Context) (*App, error) {
 	cfg := config.Load()
+	logger := slog.Default()
 
 	pool, err := pg.NewPostgresPool(ctx, cfg.Postgres.DSN())
 	if err != nil {
@@ -87,8 +91,17 @@ func Build(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("failed to init redis client: %w", err)
 	}
 
+	// Initialize WebSocket hub
+	wsHub := ws.NewHub(logger)
+
+	// Initialize broadcaster
+	broadcaster := ws.NewBroadcaster(wsHub)
+
 	infra := initInfrastructure(pool, redisClient, cfg)
-	uc := initUseCases(infra)
+	uc := initUseCases(infra, broadcaster, wsHub)
+
+	// Initialize WebSocket handler
+	wsHandler := ws.NewHandler(wsHub, infra.chatRepo, infra.authPortal, logger)
 
 	return &App{
 		cfg:         cfg,
@@ -96,6 +109,8 @@ func Build(ctx context.Context) (*App, error) {
 		redisClient: redisClient,
 		infra:       infra,
 		uc:          uc,
+		wsHub:       wsHub,
+		wsHandler:   wsHandler,
 	}, nil
 }
 
@@ -189,7 +204,7 @@ func initInfrastructure(pool *pgxpool.Pool, redisClient *redis.Client, cfg *conf
 	}
 }
 
-func initUseCases(infra *infrastructure) *useCases {
+func initUseCases(infra *infrastructure, broadcaster ws.Broadcaster, wsHub *ws.Hub) *useCases {
 	return &useCases{
 		auth: authuc.New(infra.userRepo, infra.passwordHasher, infra.tokenService),
 		user: useruc.New(
@@ -201,13 +216,18 @@ func initUseCases(infra *infrastructure) *useCases {
 			infra.tokenService,
 		),
 		chat:         chatuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
-		message:      messageuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
-		notification: notificationuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
+		message:      messageuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal, broadcaster),
+		notification: notificationuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal, broadcaster, wsHub),
 		emailNotif:   notificationUC.New(infra.emailSender),
 	}
 }
 
 func (a *App) RunHTTPServer() error {
+	// Start WebSocket hub in background
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go a.wsHub.Run(ctx)
+
 	srv := a.setupHTTPServer()
 	return a.runServer(srv)
 }
@@ -220,12 +240,17 @@ func (a *App) setupHTTPServer() *http.Server {
 	authHttp.Register(mux, "/auth", a.uc.auth, a.uc.user, a.infra.authPortal)
 	chatHttp.Register(mux, "/chat", a.uc.chat, a.uc.message, a.uc.notification, a.infra.authPortal)
 
-	// global middlewares
-	handler := middleware.Recovery(middleware.Logger(middleware.CORS(mux)))
+	// global middlewares for HTTP handlers
+	httpHandler := middleware.Recovery(middleware.Logger(middleware.CORS(mux)))
+
+	// Create root mux that routes WebSocket separately (without middleware that breaks Hijacker)
+	rootMux := http.NewServeMux()
+	rootMux.Handle("GET /chat/ws", a.wsHandler)
+	rootMux.Handle("/", httpHandler)
 
 	return &http.Server{
 		Addr:         a.cfg.Server.Addr,
-		Handler:      handler,
+		Handler:      rootMux,
 		ReadTimeout:  a.cfg.Server.ReadTimeout,
 		WriteTimeout: a.cfg.Server.WriteTimeout,
 		IdleTimeout:  a.cfg.Server.IdleTimeout,

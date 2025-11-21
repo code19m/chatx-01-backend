@@ -1,6 +1,6 @@
 # ChatX API Contract
 
-Version: 1.0
+Version: 1.1
 Base URL: `http://localhost:9900` (configurable via `SERVER_ADDR` env variable)
 
 ## Table of Contents
@@ -14,6 +14,7 @@ Base URL: `http://localhost:9900` (configurable via `SERVER_ADDR` env variable)
 - [Chat Endpoints](#chat-endpoints)
 - [Message Endpoints](#message-endpoints)
 - [Notification Endpoints](#notification-endpoints)
+- [WebSocket API](#websocket-api)
 - [Data Models](#data-models)
 - [Environment Configuration](#environment-configuration)
 
@@ -888,6 +889,402 @@ Get online status for multiple users.
 
 - `last_seen` is `null` if user is currently online
 - `last_seen` contains timestamp of last activity when offline
+- Online status is now tracked via WebSocket connections (see [WebSocket API](#websocket-api))
+
+---
+
+## WebSocket API
+
+ChatX provides real-time messaging capabilities via WebSocket connections. This allows clients to receive instant notifications for new messages, message edits/deletes, typing indicators, and user presence updates.
+
+### Connection
+
+**Endpoint:** `GET /chat/ws`
+
+**Authentication:** Token via query parameter
+
+**Connection URL:**
+
+```
+ws://localhost:9900/chat/ws?token=<access_token>
+```
+
+**Notes:**
+
+- Use `wss://` for production environments with TLS
+- The `token` query parameter must be a valid JWT access token
+- Upon successful connection, the client is automatically subscribed to all chats they participate in
+- Connection triggers `presence.online` event to all contacts
+
+---
+
+### Message Format
+
+All WebSocket messages use JSON format with the following envelope structure:
+
+**Server to Client:**
+
+```json
+{
+  "type": "event_type",
+  "payload": { ... }
+}
+```
+
+**Client to Server:**
+
+```json
+{
+  "type": "event_type",
+  "payload": {
+    "chat_id": 1
+  }
+}
+```
+
+---
+
+### Server Events (Server to Client)
+
+#### message.new
+
+Received when a new message is sent in a chat you participate in.
+
+```json
+{
+  "type": "message.new",
+  "payload": {
+    "id": 123,
+    "chat_id": 1,
+    "sender_id": 2,
+    "content": "Hello there!",
+    "sent_at": "2025-01-15T14:30:00Z"
+  }
+}
+```
+
+---
+
+#### message.edit
+
+Received when a message is edited.
+
+```json
+{
+  "type": "message.edit",
+  "payload": {
+    "id": 123,
+    "chat_id": 1,
+    "sender_id": 2,
+    "content": "Updated message content",
+    "edited_at": "2025-01-15T14:35:00Z"
+  }
+}
+```
+
+---
+
+#### message.delete
+
+Received when a message is deleted.
+
+```json
+{
+  "type": "message.delete",
+  "payload": {
+    "id": 123,
+    "chat_id": 1
+  }
+}
+```
+
+---
+
+#### message.read
+
+Received when another user reads messages in your chat.
+
+```json
+{
+  "type": "message.read",
+  "payload": {
+    "chat_id": 1,
+    "user_id": 2,
+    "message_id": 150,
+    "read_at": "2025-01-15T14:40:00Z"
+  }
+}
+```
+
+---
+
+#### typing.start
+
+Received when another user starts typing in a chat.
+
+```json
+{
+  "type": "typing.start",
+  "payload": {
+    "chat_id": 1,
+    "user_id": 2
+  }
+}
+```
+
+---
+
+#### typing.stop
+
+Received when another user stops typing.
+
+```json
+{
+  "type": "typing.stop",
+  "payload": {
+    "chat_id": 1,
+    "user_id": 2
+  }
+}
+```
+
+---
+
+#### presence.online
+
+Received when a contact comes online.
+
+```json
+{
+  "type": "presence.online",
+  "payload": {
+    "user_id": 2,
+    "online": true
+  }
+}
+```
+
+---
+
+#### presence.offline
+
+Received when a contact goes offline.
+
+```json
+{
+  "type": "presence.offline",
+  "payload": {
+    "user_id": 2,
+    "online": false
+  }
+}
+```
+
+---
+
+#### error
+
+Received when an error occurs processing a client message.
+
+```json
+{
+  "type": "error",
+  "payload": {
+    "code": "invalid_chat",
+    "message": "You are not a participant of this chat"
+  }
+}
+```
+
+---
+
+### Client Events (Client to Server)
+
+#### typing.start
+
+Send when the user starts typing in a chat.
+
+```json
+{
+  "type": "typing.start",
+  "payload": {
+    "chat_id": 1
+  }
+}
+```
+
+---
+
+#### typing.stop
+
+Send when the user stops typing (e.g., after a timeout or clearing the input).
+
+```json
+{
+  "type": "typing.stop",
+  "payload": {
+    "chat_id": 1
+  }
+}
+```
+
+---
+
+### Connection Lifecycle
+
+1. **Connect:** Client establishes WebSocket connection with token
+2. **Authenticate:** Server validates token and retrieves user info
+3. **Subscribe:** Client is auto-subscribed to all their chats
+4. **Presence:** Server broadcasts `presence.online` to user's contacts
+5. **Active:** Client receives events and can send typing indicators
+6. **Disconnect:** Server broadcasts `presence.offline` and cleans up
+
+---
+
+### Reconnection Strategy
+
+Clients should implement automatic reconnection with exponential backoff:
+
+```javascript
+const connect = (attempt = 0) => {
+  const ws = new WebSocket(`ws://localhost:9900/chat/ws?token=${token}`);
+
+  ws.onclose = () => {
+    const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+    setTimeout(() => connect(attempt + 1), delay);
+  };
+
+  ws.onopen = () => {
+    attempt = 0; // Reset on successful connection
+  };
+};
+```
+
+---
+
+### JavaScript Client Example
+
+```javascript
+class ChatWSClient {
+  constructor(token) {
+    this.token = token;
+    this.ws = null;
+    this.handlers = {};
+  }
+
+  connect() {
+    this.ws = new WebSocket(`ws://localhost:9900/chat/ws?token=${this.token}`);
+
+    this.ws.onmessage = (event) => {
+      const { type, payload } = JSON.parse(event.data);
+      if (this.handlers[type]) {
+        this.handlers[type](payload);
+      }
+    };
+
+    this.ws.onclose = () => {
+      // Implement reconnection logic
+      setTimeout(() => this.connect(), 3000);
+    };
+  }
+
+  on(eventType, handler) {
+    this.handlers[eventType] = handler;
+  }
+
+  sendTyping(chatId, isTyping) {
+    this.ws.send(JSON.stringify({
+      type: isTyping ? 'typing.start' : 'typing.stop',
+      payload: { chat_id: chatId }
+    }));
+  }
+
+  close() {
+    this.ws.close();
+  }
+}
+
+// Usage
+const client = new ChatWSClient(accessToken);
+client.connect();
+
+client.on('message.new', (payload) => {
+  console.log('New message:', payload);
+});
+
+client.on('typing.start', (payload) => {
+  console.log(`User ${payload.user_id} is typing in chat ${payload.chat_id}`);
+});
+
+client.on('presence.online', (payload) => {
+  console.log(`User ${payload.user_id} came online`);
+});
+```
+
+---
+
+### WebSocket Data Models
+
+#### WebSocket Message Payload
+
+```typescript
+interface MessagePayload {
+  id: number;
+  chat_id: number;
+  sender_id: number;
+  content: string;
+  sent_at?: string;     // RFC3339 timestamp
+  edited_at?: string;   // RFC3339 timestamp, only for edits
+}
+```
+
+#### Message Delete Payload
+
+```typescript
+interface MessageDeletePayload {
+  id: number;
+  chat_id: number;
+}
+```
+
+#### Message Read Payload
+
+```typescript
+interface MessageReadPayload {
+  chat_id: number;
+  user_id: number;
+  message_id: number;
+  read_at: string;      // RFC3339 timestamp
+}
+```
+
+#### Typing Payload
+
+```typescript
+interface TypingPayload {
+  chat_id: number;
+  user_id: number;
+}
+```
+
+#### Presence Payload
+
+```typescript
+interface PresencePayload {
+  user_id: number;
+  online: boolean;
+  last_seen?: string;   // RFC3339 timestamp, when offline
+}
+```
+
+#### Error Payload
+
+```typescript
+interface ErrorPayload {
+  code: string;
+  message: string;
+}
+```
 
 ---
 
@@ -993,11 +1390,15 @@ interface UserOnlineStatus {
 
 ### Real-time Features
 
-This API does not currently include WebSocket endpoints. Consider implementing:
+ChatX provides WebSocket support for real-time messaging. See the [WebSocket API](#websocket-api) section for details.
 
-- Polling for new messages (`GET /chat/chats/{chat_id}/messages`)
-- Polling for unread counts (`GET /chat/notifications/unread`)
-- Or add WebSocket support for real-time message delivery
+**Recommended implementation:**
+
+1. Connect to WebSocket on app load: `ws://localhost:9900/chat/ws?token=<access_token>`
+2. Listen for events: `message.new`, `message.edit`, `message.delete`, `typing.*`, `presence.*`
+3. Send typing indicators when user types in chat input
+4. Implement reconnection with exponential backoff
+5. Fall back to polling if WebSocket is unavailable
 
 ### Image Upload Flow
 
@@ -1117,5 +1518,11 @@ curl -X GET "http://localhost:9900/chat/chats/1/messages?page=0&limit=50" \
 | GET    | /chat/chats/{chat_id}/unread | Yes  | Chat unread count       |
 | POST   | /chat/chats/read             | Yes  | Mark messages as read   |
 | POST   | /chat/users/online-status    | Yes  | Get users online status |
+
+### WebSocket
+
+| Method | Endpoint   | Auth | Description                  |
+| ------ | ---------- | ---- | ---------------------------- |
+| GET    | /chat/ws   | Yes* | WebSocket connection (*token via query param) |
 
 ---

@@ -1,16 +1,26 @@
 package notificationuc
 
 import (
+	"chatx-01-backend/internal/chat/controller/ws"
 	"chatx-01-backend/internal/chat/domain"
 	"chatx-01-backend/internal/portal/auth"
 	"chatx-01-backend/pkg/errs"
 	"context"
+	"time"
 )
 
+// OnlineChecker provides online status checking capability.
+type OnlineChecker interface {
+	IsUserOnline(userID int) bool
+	GetOnlineUsers(userIDs []int) []int
+}
+
 type useCase struct {
-	chatRepo    domain.ChatRepository
-	messageRepo domain.MessageRepository
-	authPortal  auth.Portal
+	chatRepo      domain.ChatRepository
+	messageRepo   domain.MessageRepository
+	authPortal    auth.Portal
+	broadcaster   ws.Broadcaster
+	onlineChecker OnlineChecker
 }
 
 // New creates a new notification use case.
@@ -18,11 +28,15 @@ func New(
 	chatRepo domain.ChatRepository,
 	messageRepo domain.MessageRepository,
 	authPortal auth.Portal,
+	broadcaster ws.Broadcaster,
+	onlineChecker OnlineChecker,
 ) UseCase {
 	return &useCase{
-		chatRepo:    chatRepo,
-		messageRepo: messageRepo,
-		authPortal:  authPortal,
+		chatRepo:      chatRepo,
+		messageRepo:   messageRepo,
+		authPortal:    authPortal,
+		broadcaster:   broadcaster,
+		onlineChecker: onlineChecker,
 	}
 }
 
@@ -113,6 +127,9 @@ func (uc *useCase) MarkMessagesAsRead(ctx context.Context, req MarkMessagesAsRea
 		return errs.Wrap(op, err)
 	}
 
+	// Broadcast read receipt via WebSocket
+	uc.broadcaster.BroadcastReadReceipt(req.ChatID, userID, req.MessageID, time.Now())
+
 	return nil
 }
 
@@ -127,15 +144,19 @@ func (uc *useCase) GetOnlineStatusByUsers(
 		return nil, errs.Wrap(op, err)
 	}
 
-	// TODO: Implement online status tracking
-	// This requires a separate mechanism (Redis, WebSocket tracking, etc.)
-	// For now, returning placeholder with all users offline
+	// Get online users from WebSocket hub
+	onlineUserIDs := uc.onlineChecker.GetOnlineUsers(req.UserIDs)
+	onlineSet := make(map[int]bool, len(onlineUserIDs))
+	for _, id := range onlineUserIDs {
+		onlineSet[id] = true
+	}
+
 	statuses := make([]UserOnlineStatus, len(req.UserIDs))
 	for i, userID := range req.UserIDs {
 		statuses[i] = UserOnlineStatus{
 			UserID:   userID,
-			IsOnline: false,
-			LastSeen: nil, // Will be populated when tracking is implemented
+			IsOnline: onlineSet[userID],
+			LastSeen: nil, // TODO: Implement last seen tracking with Redis
 		}
 	}
 

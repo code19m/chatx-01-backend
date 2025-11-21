@@ -39,4 +39,8 @@ type Portal interface {
 
 	// RequireAdmin creates a middleware that checks if the user is authenticated and has admin role.
 	RequireAdmin() func(next http.Handler) http.Handler
+
+	// ValidateToken validates a token string and returns the authenticated user.
+	// Used for WebSocket authentication where token comes from query params.
+	ValidateToken(ctx context.Context, tokenString string) (AuthenticatedUser, error)
 }

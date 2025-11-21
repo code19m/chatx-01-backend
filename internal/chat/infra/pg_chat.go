@@ -313,3 +313,30 @@ func (r *PgChatRepo) UpdateLastRead(ctx context.Context, chatID, userID, message
 
 	return nil
 }
+
+func (r *PgChatRepo) GetUserChatIDs(ctx context.Context, userID int) ([]int, error) {
+	const op = "pgchat.GetUserChatIDs"
+
+	query := `SELECT chat_id FROM chat_participants WHERE user_id = $1`
+
+	rows, err := r.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, pg.WrapRepoError(op, err)
+	}
+	defer rows.Close()
+
+	chatIDs := make([]int, 0)
+	for rows.Next() {
+		var chatID int
+		if err := rows.Scan(&chatID); err != nil {
+			return nil, pg.WrapRepoError(op, err)
+		}
+		chatIDs = append(chatIDs, chatID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, pg.WrapRepoError(op, err)
+	}
+
+	return chatIDs, nil
+}
