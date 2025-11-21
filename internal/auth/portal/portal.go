@@ -25,17 +25,17 @@ var (
 )
 
 type Portal struct {
-	userRepo       domain.UserRepository
-	tokenGenerator token.Generator
+	userRepo     domain.UserRepository
+	tokenService *token.Service
 }
 
 func New(
 	userRepo domain.UserRepository,
-	tokenGenerator token.Generator,
+	tokenService *token.Service,
 ) *Portal {
 	return &Portal{
-		userRepo:       userRepo,
-		tokenGenerator: tokenGenerator,
+		userRepo:     userRepo,
+		tokenService: tokenService,
 	}
 }
 
@@ -159,10 +159,10 @@ func (p *Portal) authenticate(r *http.Request) (auth.AuthenticatedUser, error) {
 
 	tokenString := parts[1]
 
-	// Validate token
-	claims, err := p.tokenGenerator.Validate(tokenString)
+	// Validate token and check Redis
+	claims, err := p.tokenService.ValidateAndCheck(r.Context(), tokenString)
 	if err != nil {
-		return au, errors.New("unauthorized: invalid token")
+		return au, errors.New("unauthorized: invalid or revoked token")
 	}
 
 	// Check token type (should be access token)

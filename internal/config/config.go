@@ -40,6 +40,24 @@ func Load() *Config {
 			SecretAccessKey: getEnv("MINIO_SECRET_KEY", "minioadmin"),
 			UseSSL:          getEnvBool("MINIO_USE_SSL", false),
 		},
+		Kafka: KafkaConfig{
+			Brokers:      getEnv("KAFKA_BROKERS", "localhost:9092"),
+			SaslUsername: getEnv("KAFKA_SASL_USERNAME", ""),
+			SaslPassword: getEnv("KAFKA_SASL_PASSWORD", ""),
+		},
+		SMTP: SMTPConfig{
+			Host:     getEnv("SMTP_HOST", ""),
+			Port:     getEnv("SMTP_PORT", "587"),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", "noreply@chatx.code19m.uz"),
+		},
+		Redis: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvInt("REDIS_DB", 0),
+		},
 	}
 }
 
@@ -48,6 +66,9 @@ type Config struct {
 	Postgres  PostgresConfig
 	AuthToken AuthTokenConfig
 	MinIO     MinIOConfig
+	Kafka     KafkaConfig
+	SMTP      SMTPConfig
+	Redis     RedisConfig
 }
 
 type ServerConfig struct {
@@ -90,6 +111,27 @@ type MinIOConfig struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	UseSSL          bool
+}
+
+type KafkaConfig struct {
+	Brokers      string
+	SaslUsername string
+	SaslPassword string
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+}
+
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
 }
 
 func getEnv(key, defaultValue string) string {

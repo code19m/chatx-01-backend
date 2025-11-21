@@ -11,18 +11,18 @@ import (
 type useCase struct {
 	userRepo       domain.UserRepository
 	passwordHasher hasher.Hasher
-	tokenGenerator token.Generator
+	tokenService   *token.Service
 }
 
 func New(
 	userRepo domain.UserRepository,
 	passwordHasher hasher.Hasher,
-	tokenGenerator token.Generator,
+	tokenService *token.Service,
 ) UseCase {
 	return &useCase{
 		userRepo:       userRepo,
 		passwordHasher: passwordHasher,
-		tokenGenerator: tokenGenerator,
+		tokenService:   tokenService,
 	}
 }
 
@@ -39,12 +39,14 @@ func (uc *useCase) Login(ctx context.Context, req LoginReq) (*LoginResp, error) 
 		return nil, errs.Wrap(op, domain.ErrInvalidCredentials)
 	}
 
-	accessToken, err := uc.tokenGenerator.Generate(user.ID, user.Role.String(), token.TokenTypeAccess)
+	// Generate and store access token in Redis
+	accessToken, err := uc.tokenService.GenerateAndStore(ctx, user.ID, user.Role.String(), token.TokenTypeAccess)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
 
-	refreshToken, err := uc.tokenGenerator.Generate(user.ID, user.Role.String(), token.TokenTypeRefresh)
+	// Generate and store refresh token in Redis
+	refreshToken, err := uc.tokenService.GenerateAndStore(ctx, user.ID, user.Role.String(), token.TokenTypeRefresh)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
 	}
@@ -61,7 +63,15 @@ func (uc *useCase) Login(ctx context.Context, req LoginReq) (*LoginResp, error) 
 }
 
 func (uc *useCase) Logout(ctx context.Context, req LogoutReq) error {
-	// For now, we don't do server-side session invalidation
-	// Just return success
+	const op = "authuc.Logout"
+
+	// Revoke access token
+	if req.AccessToken != "" {
+		err := uc.tokenService.Revoke(ctx, req.AccessToken)
+		if err != nil {
+			return errs.Wrap(op, err)
+		}
+	}
+
 	return nil
 }

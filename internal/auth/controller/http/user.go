@@ -3,7 +3,9 @@ package http
 import (
 	"chatx-01-backend/internal/auth/usecase/useruc"
 	"chatx-01-backend/pkg/httptools"
+	"io"
 	"net/http"
+	"strings"
 )
 
 func (c *ctrl) getMe(w http.ResponseWriter, r *http.Request) {
@@ -116,4 +118,76 @@ func (c *ctrl) getUsersList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httptools.WriteResponse(http.StatusOK, w, resp)
+}
+
+func (c *ctrl) uploadImage(w http.ResponseWriter, r *http.Request) {
+	const maxFileSize = 10 << 20 // 10 MB
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
+	if err := r.ParseMultipartForm(maxFileSize); err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+	defer file.Close()
+
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	req := useruc.UploadImageReq{
+		File:        fileData,
+		FileName:    header.Filename,
+		ContentType: contentType,
+		Size:        int64(len(fileData)),
+	}
+
+	if err := req.Validate(); err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	resp, err := c.userUsecase.UploadImage(r.Context(), req)
+	if err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	httptools.WriteResponse(http.StatusOK, w, resp)
+}
+
+func (c *ctrl) downloadImage(w http.ResponseWriter, r *http.Request) {
+	imagePath := strings.TrimPrefix(r.PathValue("image_path"), "/")
+
+	req := useruc.DownloadImageReq{
+		ImagePath: imagePath,
+	}
+
+	if err := req.Validate(); err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	resp, err := c.userUsecase.DownloadImage(r.Context(), req)
+	if err != nil {
+		httptools.HandleError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", resp.ContentType)
+	w.Header().Set("Content-Disposition", "inline; filename=\""+resp.FileName+"\"")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp.File)
 }

@@ -16,6 +16,8 @@ type UseCase interface {
 	GetMe(ctx context.Context, req GetMeReq) (*GetMeResp, error)
 	ChangePassword(ctx context.Context, req ChangePasswordReq) error
 	ChangeImage(ctx context.Context, req ChangeImageReq) (*ChangeImageResp, error)
+	UploadImage(ctx context.Context, req UploadImageReq) (*UploadImageResp, error)
+	DownloadImage(ctx context.Context, req DownloadImageReq) (*DownloadImageResp, error)
 }
 
 type CreateUserReq struct {
@@ -193,4 +195,51 @@ func (req ChangeImageReq) Validate() error {
 
 type ChangeImageResp struct {
 	ImagePath *string `json:"image_path"`
+}
+
+type UploadImageReq struct {
+	File        []byte `json:"-"`
+	FileName    string `json:"-"`
+	ContentType string `json:"-"`
+	Size        int64  `json:"-"`
+}
+
+func (req UploadImageReq) Validate() error {
+	var verr error
+
+	if len(req.File) == 0 {
+		verr = errs.AddFieldError(verr, "file", "file is required")
+	}
+	if req.FileName == "" {
+		verr = errs.AddFieldError(verr, "file_name", "file name is required")
+	}
+	if req.Size <= 0 {
+		verr = errs.AddFieldError(verr, "size", "invalid file size")
+	}
+
+	return verr
+}
+
+type UploadImageResp struct {
+	ImagePath string `json:"image_path"`
+}
+
+type DownloadImageReq struct {
+	ImagePath string `path:"image_path"`
+}
+
+func (req DownloadImageReq) Validate() error {
+	var verr error
+
+	if req.ImagePath == "" {
+		verr = errs.AddFieldError(verr, "image_path", "image path is required")
+	}
+
+	return verr
+}
+
+type DownloadImageResp struct {
+	File        []byte
+	ContentType string
+	FileName    string
 }

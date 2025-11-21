@@ -1,12 +1,20 @@
 package useruc
 
 import (
+	"bytes"
 	"chatx-01-backend/internal/auth/domain"
+	"chatx-01-backend/internal/events"
 	"chatx-01-backend/internal/portal/auth"
 	"chatx-01-backend/pkg/errs"
 	"chatx-01-backend/pkg/filestore"
 	"chatx-01-backend/pkg/hasher"
+	"chatx-01-backend/pkg/kafka"
+	"chatx-01-backend/pkg/token"
 	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -17,6 +25,8 @@ type useCase struct {
 	passwordHasher hasher.Hasher
 	fileStore      filestore.Store
 	authPr         auth.Portal
+	eventProducer  *kafka.Producer
+	tokenService   *token.Service
 }
 
 func New(
@@ -24,18 +34,43 @@ func New(
 	passwordHasher hasher.Hasher,
 	fileStore filestore.Store,
 	authPr auth.Portal,
+	eventProducer *kafka.Producer,
+	tokenService *token.Service,
 ) UseCase {
 	return &useCase{
 		userRepo,
 		passwordHasher,
 		fileStore,
 		authPr,
+		eventProducer,
+		tokenService,
 	}
 }
 
 func (uc *useCase) CreateUser(ctx context.Context, req CreateUserReq) (*CreateUserResp, error) {
 	const op = "useruc.CreateUser"
 
+	// Send user registration event to Kafka with plain password before hashing
+	event := events.UserRegisteredEvent{
+		Email:    req.Email,
+		Username: req.Username,
+		Password: req.Password,
+	}
+
+	eventData, err := event.Marshal()
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+
+	err = uc.eventProducer.SendMessage(ctx, &kafka.Message{
+		Key:   []byte(req.Email),
+		Value: eventData,
+	})
+	if err != nil {
+		return nil, errs.Wrap(op, fmt.Errorf("failed to send registration event: %w", err))
+	}
+
+	// Now hash the password and create the user
 	passwordHash, err := uc.passwordHasher.Hash(req.Password)
 	if err != nil {
 		return nil, errs.Wrap(op, err)
@@ -98,11 +133,20 @@ func (uc *useCase) CreateSuperUser(ctx context.Context, req CreateSuperUserReq) 
 func (uc *useCase) DeleteUser(ctx context.Context, req DeleteUserReq) error {
 	const op = "useruc.DeleteUser"
 
+	// Get user to ensure they exist
 	_, err := uc.userRepo.GetByID(ctx, req.UserID)
 	if err != nil {
 		return errs.ReplaceOn(err, errs.ErrNotFound, errs.NewNotFoundError("user_id", "user not found"))
 	}
 
+	// Revoke all user tokens BEFORE deleting
+	err = uc.tokenService.RevokeAllUserTokens(ctx, req.UserID)
+	if err != nil {
+		slog.Error("failed to revoke user tokens", "user_id", req.UserID, "error", err)
+		// Don't fail deletion - continue
+	}
+
+	// Delete user
 	err = uc.userRepo.Delete(ctx, req.UserID)
 	if err != nil {
 		return errs.Wrap(op, err)
@@ -261,5 +305,71 @@ func (uc *useCase) ChangeImage(ctx context.Context, req ChangeImageReq) (*Change
 
 	return &ChangeImageResp{
 		ImagePath: user.ImagePath,
+	}, nil
+}
+
+func (uc *useCase) UploadImage(ctx context.Context, req UploadImageReq) (*UploadImageResp, error) {
+	const op = "useruc.UploadImage"
+
+	au, err := uc.authPr.GetAuthUser(ctx)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+
+	if !slices.Contains([]string{
+		"image/jpeg",
+		"image/jpg",
+		"image/png",
+	}, strings.ToLower(req.ContentType)) {
+		return nil, errs.Wrap(op, errs.NewValidationError("file must be a JPEG or PNG image"))
+	}
+
+	ext := filepath.Ext(req.FileName)
+	imagePath := fmt.Sprintf("users/%d/profile%s", au.ID, ext)
+
+	reader := bytes.NewReader(req.File)
+	err = uc.fileStore.Upload(ctx, imagePath, reader, req.Size, req.ContentType)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+
+	return &UploadImageResp{
+		ImagePath: imagePath,
+	}, nil
+}
+
+func (uc *useCase) DownloadImage(ctx context.Context, req DownloadImageReq) (*DownloadImageResp, error) {
+	const op = "useruc.DownloadImage"
+
+	exists, err := uc.fileStore.Exists(ctx, req.ImagePath)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+	if !exists {
+		return nil, errs.Wrap(op, errs.NewNotFoundError("image_path", "file does not exist"))
+	}
+
+	contentType, err := uc.fileStore.GetContentType(ctx, req.ImagePath)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+
+	reader, err := uc.fileStore.Download(ctx, req.ImagePath)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+	defer reader.Close()
+
+	fileData, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, errs.Wrap(op, err)
+	}
+
+	fileName := filepath.Base(req.ImagePath)
+
+	return &DownloadImageResp{
+		File:        fileData,
+		ContentType: contentType,
+		FileName:    fileName,
 	}, nil
 }

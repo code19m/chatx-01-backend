@@ -13,14 +13,20 @@ import (
 	"chatx-01-backend/internal/chat/usecase/messageuc"
 	"chatx-01-backend/internal/chat/usecase/notificationuc"
 	"chatx-01-backend/internal/config"
+	"chatx-01-backend/internal/notifications"
+	notificationUC "chatx-01-backend/internal/notifications/usecase"
+	"chatx-01-backend/pkg/email"
 	"chatx-01-backend/pkg/filestore"
 	"chatx-01-backend/pkg/hasher"
+	"chatx-01-backend/pkg/kafka"
 	"chatx-01-backend/pkg/middleware"
 	"chatx-01-backend/pkg/pg"
+	"chatx-01-backend/pkg/redis"
 	"chatx-01-backend/pkg/token"
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -32,16 +38,19 @@ import (
 )
 
 type App struct {
-	cfg   *config.Config
-	pool  *pgxpool.Pool
-	infra *infrastructure
-	uc    *useCases
+	cfg         *config.Config
+	pool        *pgxpool.Pool
+	redisClient *redis.Client
+	infra       *infrastructure
+	uc          *useCases
 }
 
 type infrastructure struct {
-	tokenGenerator token.Generator
+	tokenService   *token.Service
 	passwordHasher hasher.Hasher
 	fileStore      filestore.Store
+	eventProducer  *kafka.Producer
+	emailSender    email.Sender
 
 	userRepo    *authInfra.PgUserRepo
 	chatRepo    *chatInfra.PgChatRepo
@@ -56,6 +65,7 @@ type useCases struct {
 	chat         chatuc.UseCase
 	message      messageuc.UseCase
 	notification notificationuc.UseCase
+	emailNotif   notificationUC.UseCase
 }
 
 func Build(ctx context.Context) (*App, error) {
@@ -66,30 +76,68 @@ func Build(ctx context.Context) (*App, error) {
 		return nil, fmt.Errorf("failed to init postgres pool: %w", err)
 	}
 
-	infra := initInfrastructure(pool, cfg)
+	// Initialize Redis client
+	redisClient, err := redis.NewClient(redis.Config{
+		Host:     cfg.Redis.Host,
+		Port:     cfg.Redis.Port,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to init redis client: %w", err)
+	}
+
+	infra := initInfrastructure(pool, redisClient, cfg)
 	uc := initUseCases(infra)
 
 	return &App{
-		cfg:   cfg,
-		pool:  pool,
-		infra: infra,
-		uc:    uc,
+		cfg:         cfg,
+		pool:        pool,
+		redisClient: redisClient,
+		infra:       infra,
+		uc:          uc,
 	}, nil
 }
 
 func (a *App) Close() {
+	if a.infra.eventProducer != nil {
+		if err := a.infra.eventProducer.Close(); err != nil {
+			log.Printf("Failed to close Kafka producer: %v", err)
+		} else {
+			log.Println("Kafka producer closed")
+		}
+	}
+
+	if a.redisClient != nil {
+		if err := a.redisClient.Close(); err != nil {
+			log.Printf("Failed to close Redis client: %v", err)
+		} else {
+			log.Println("Redis client closed")
+		}
+	}
+
 	if a.pool != nil {
 		a.pool.Close()
 		log.Println("Postgres pool closed")
 	}
 }
 
-func initInfrastructure(pool *pgxpool.Pool, cfg *config.Config) *infrastructure {
+func initInfrastructure(pool *pgxpool.Pool, redisClient *redis.Client, cfg *config.Config) *infrastructure {
+	// Initialize JWT generator
 	tokenGenerator := token.NewGenerator(
 		cfg.AuthToken.Secret,
 		cfg.AuthToken.AccessTokenTTL,
 		cfg.AuthToken.RefreshTokenTTL,
 	)
+
+	// Initialize token service with Redis
+	tokenService := token.NewService(
+		tokenGenerator,
+		redisClient,
+		cfg.AuthToken.AccessTokenTTL,
+		cfg.AuthToken.RefreshTokenTTL,
+	)
+
 	passwordHasher := hasher.NewHasher(100000, 16, 32)
 	fileStore := filestore.NewMinioStore(filestore.Config{
 		Endpoint:        cfg.MinIO.Endpoint,
@@ -99,16 +147,41 @@ func initInfrastructure(pool *pgxpool.Pool, cfg *config.Config) *infrastructure 
 		UseSSL:          cfg.MinIO.UseSSL,
 	})
 
+	// Initialize Kafka producer
+	eventProducer, err := kafka.NewProducer(
+		kafka.ProducerConfig{
+			Brokers:      cfg.Kafka.Brokers,
+			SaslUsername: cfg.Kafka.SaslUsername,
+			SaslPassword: cfg.Kafka.SaslPassword,
+		},
+		"user.registration.email",
+		"chatx-api",
+	)
+	if err != nil {
+		log.Fatalf("failed to create kafka producer: %v", err)
+	}
+
+	// Initialize email sender
+	emailSender := email.New(email.Config{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		From:     cfg.SMTP.From,
+	})
+
 	userRepo := authInfra.NewPgUserRepo(pool)
 	chatRepo := chatInfra.NewPgChatRepo(pool)
 	messageRepo := chatInfra.NewPgMessageRepo(pool)
 
-	authPr := authPortal.New(userRepo, tokenGenerator)
+	authPr := authPortal.New(userRepo, tokenService)
 
 	return &infrastructure{
-		tokenGenerator: tokenGenerator,
+		tokenService:   tokenService,
 		passwordHasher: passwordHasher,
 		fileStore:      fileStore,
+		eventProducer:  eventProducer,
+		emailSender:    emailSender,
 		userRepo:       userRepo,
 		chatRepo:       chatRepo,
 		messageRepo:    messageRepo,
@@ -118,11 +191,19 @@ func initInfrastructure(pool *pgxpool.Pool, cfg *config.Config) *infrastructure 
 
 func initUseCases(infra *infrastructure) *useCases {
 	return &useCases{
-		auth:         authuc.New(infra.userRepo, infra.passwordHasher, infra.tokenGenerator),
-		user:         useruc.New(infra.userRepo, infra.passwordHasher, infra.fileStore, infra.authPortal),
+		auth: authuc.New(infra.userRepo, infra.passwordHasher, infra.tokenService),
+		user: useruc.New(
+			infra.userRepo,
+			infra.passwordHasher,
+			infra.fileStore,
+			infra.authPortal,
+			infra.eventProducer,
+			infra.tokenService,
+		),
 		chat:         chatuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
 		message:      messageuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
 		notification: notificationuc.New(infra.chatRepo, infra.messageRepo, infra.authPortal),
+		emailNotif:   notificationUC.New(infra.emailSender),
 	}
 }
 
@@ -136,7 +217,7 @@ func (a *App) setupHTTPServer() *http.Server {
 	mux := http.NewServeMux()
 
 	// register module handlers
-	authHttp.Register(mux, "/auth", a.uc.auth, a.uc.user, a.infra.tokenGenerator, a.infra.authPortal)
+	authHttp.Register(mux, "/auth", a.uc.auth, a.uc.user, a.infra.authPortal)
 	chatHttp.Register(mux, "/chat", a.uc.chat, a.uc.message, a.uc.notification, a.infra.authPortal)
 
 	// global middlewares
@@ -241,4 +322,67 @@ func (a *App) CreateSuperUser() error {
 	fmt.Printf("Role: admin\n")
 
 	return nil
+}
+
+func (a *App) RunNotificationConsumer() error {
+	const (
+		serviceName    = "chatx-notifications"
+		serviceVersion = "1.0.0"
+		topicName      = "user.registration.email"
+	)
+
+	slog.Info("starting notification consumer service", "version", serviceVersion)
+
+	// Create notification handler
+	handler := notifications.NewHandler(a.uc.emailNotif)
+
+	// Create Kafka consumer
+	consumer, err := kafka.NewConsumer(
+		kafka.ConsumerConfig{
+			Brokers:      a.cfg.Kafka.Brokers,
+			SaslUsername: a.cfg.Kafka.SaslUsername,
+			SaslPassword: a.cfg.Kafka.SaslPassword,
+			GroupID:      serviceName,
+		},
+		topicName,
+		serviceName,
+		serviceVersion,
+		handler.HandleUserRegistration,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create kafka consumer: %w", err)
+	}
+
+	slog.Info("kafka consumer initialized",
+		"topic", topicName,
+		"group_id", serviceName,
+	)
+
+	// Start consumer in a goroutine
+	consumerErrors := make(chan error, 1)
+	go func() {
+		slog.Info("starting kafka consumer")
+		consumerErrors <- consumer.Start()
+	}()
+
+	// Wait for interrupt signal or consumer error
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-consumerErrors:
+		return fmt.Errorf("consumer error: %w", err)
+
+	case sig := <-shutdown:
+		slog.Info("received shutdown signal", "signal", sig)
+
+		// Stop consumer gracefully
+		if err := consumer.Stop(); err != nil {
+			slog.Error("failed to stop consumer", "error", err)
+			return fmt.Errorf("failed to stop consumer: %w", err)
+		}
+
+		slog.Info("notification consumer stopped gracefully")
+		return nil
+	}
 }

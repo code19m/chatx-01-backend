@@ -2,8 +2,10 @@ package token
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -20,6 +22,7 @@ const (
 
 // Claims represents JWT claims.
 type Claims struct {
+	JTI    string `json:"jti"`     // JWT ID - unique token identifier
 	UserID int    `json:"user_id"`
 	Role   string `json:"role"`
 	Type   string `json:"type"`
@@ -59,7 +62,14 @@ func (g *jwtGenerator) Generate(userID int, role string, tokenType TokenType) (s
 		exp = now.Add(g.refreshTokenTTL)
 	}
 
+	// Generate unique token ID
+	jti, err := generateJTI()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate JTI: %w", err)
+	}
+
 	claims := Claims{
+		JTI:    jti,
 		UserID: userID,
 		Role:   role,
 		Type:   string(tokenType),
@@ -137,4 +147,13 @@ func (g *jwtGenerator) sign(message string) string {
 	h.Write([]byte(message))
 	signature := h.Sum(nil)
 	return base64.RawURLEncoding.EncodeToString(signature)
+}
+
+// generateJTI generates a unique token ID using crypto/rand.
+func generateJTI() (string, error) {
+	b := make([]byte, 16) // 128 bits
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

@@ -10,6 +10,7 @@ Base URL: `http://localhost:9900` (configurable via `SERVER_ADDR` env variable)
 - [Error Responses](#error-responses)
 - [Authentication Endpoints](#authentication-endpoints)
 - [User Management Endpoints](#user-management-endpoints)
+- [Image Management Endpoints](#image-management-endpoints)
 - [Chat Endpoints](#chat-endpoints)
 - [Message Endpoints](#message-endpoints)
 - [Notification Endpoints](#notification-endpoints)
@@ -367,6 +368,94 @@ Update the authenticated user's profile image.
 
 - The actual file upload mechanism is separate (likely via MinIO presigned URLs)
 - This endpoint updates the reference to an already-uploaded image
+
+---
+
+## Image Management Endpoints
+
+### POST /auth/images/upload
+
+Upload a profile image for the authenticated user.
+
+**Authentication:** Required
+
+**Request:** Multipart form data
+
+**Form Fields:**
+
+- `file`: Image file (JPEG or PNG)
+
+**Validation Rules:**
+
+- File must be present
+- Content-Type must be `image/jpeg`, `image/jpg`, or `image/png`
+- Maximum file size: 10 MB
+
+**Success Response (200 OK):**
+
+```json
+{
+  "image_path": "users/1/profile.jpg"
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request`: Invalid file format or missing file
+- `413 Payload Too Large`: File exceeds 10 MB limit
+
+**Notes:**
+
+- Uploaded images are stored at path: `users/{user_id}/profile.{ext}`
+- Each user can have one profile image (uploading a new one replaces the old path)
+- After uploading, use `PUT /auth/users/me/image` to update the user's profile with the returned path
+
+**Example cURL:**
+
+```bash
+curl -X POST http://localhost:9900/auth/images/upload \
+  -H "Authorization: Bearer <your_token>" \
+  -F "file=@/path/to/image.jpg"
+```
+
+---
+
+### GET /auth/images/{image_path...}
+
+Download an image by its path.
+
+**Authentication:** Not required (public access)
+
+**Path Parameters:**
+
+- `image_path` (string): The full path to the image (e.g., `users/1/profile.jpg`)
+
+**Success Response (200 OK):**
+
+Returns the image file with appropriate headers:
+
+- `Content-Type`: Image MIME type (e.g., `image/jpeg`, `image/png`)
+- `Content-Disposition`: `inline; filename="profile.jpg"`
+
+**Error Responses:**
+
+- `404 Not Found`: Image does not exist
+
+**Notes:**
+
+- This endpoint serves images for display in browsers or download
+- No authentication required - images are publicly accessible
+- The `{image_path...}` wildcard allows for nested paths (e.g., `users/1/profile.jpg`)
+
+**Example Usage:**
+
+```bash
+# Download image
+curl http://localhost:9900/auth/images/users/1/profile.jpg -o profile.jpg
+
+# Or simply open in browser:
+# http://localhost:9900/auth/images/users/1/profile.jpg
+```
 
 ---
 
@@ -912,9 +1001,9 @@ This API does not currently include WebSocket endpoints. Consider implementing:
 
 ### Image Upload Flow
 
-1. Request presigned upload URL from MinIO (separate endpoint to be implemented)
-2. Upload file directly to MinIO using presigned URL
-3. Call `PUT /auth/users/me/image` with the resulting path
+1. Call `POST /auth/images/upload` with the image file (multipart/form-data)
+2. Receive `image_path` in the response
+3. Call `PUT /auth/users/me/image` with the returned `image_path` to update your profile
 
 ### Pagination Best Practices
 
@@ -993,6 +1082,13 @@ curl -X GET "http://localhost:9900/chat/chats/1/messages?page=0&limit=50" \
 | GET    | /auth/users/me          | Yes   | Get current user     |
 | PUT    | /auth/users/me/password | Yes   | Change password      |
 | PUT    | /auth/users/me/image    | Yes   | Update profile image |
+
+### Images
+
+| Method | Endpoint                   | Auth | Description   |
+| ------ | -------------------------- | ---- | ------------- |
+| POST   | /auth/images/upload        | Yes  | Upload image  |
+| GET    | /auth/images/{image_path...} | No   | Download image |
 
 ### Chats
 

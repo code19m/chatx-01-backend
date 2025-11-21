@@ -41,6 +41,7 @@ type LoginResp struct {
 }
 
 type LogoutReq struct {
+	AccessToken string `json:"-"` // Not from JSON, set by handler
 }
 
 func (req LogoutReq) Validate() error {

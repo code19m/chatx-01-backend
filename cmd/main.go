@@ -17,7 +17,7 @@ func main() {
 	command := os.Args[1]
 
 	switch command {
-	case "http", "createsuperuser":
+	case "http", "createsuperuser", "consume":
 		run(command)
 	default:
 		fmt.Printf("Unknown command: %s\n\n", command)
@@ -44,6 +44,10 @@ func run(command string) {
 		if err := application.CreateSuperUser(); err != nil {
 			log.Fatal(err)
 		}
+	case "consume":
+		if err := application.RunNotificationConsumer(); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -53,4 +57,5 @@ func printUsage() {
 	fmt.Println("Available commands:")
 	fmt.Println("  http              Start HTTP server")
 	fmt.Println("  createsuperuser   Create a super user (admin)")
+	fmt.Println("  consume           Start notification consumer service")
 }

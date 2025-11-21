@@ -4,7 +4,6 @@ import (
 	"chatx-01-backend/internal/auth/usecase/authuc"
 	"chatx-01-backend/internal/auth/usecase/useruc"
 	"chatx-01-backend/internal/portal/auth"
-	"chatx-01-backend/pkg/token"
 	"net/http"
 )
 
@@ -23,7 +22,6 @@ func Register(
 	prefix string,
 	authUsecase authuc.UseCase,
 	userUsecase useruc.UseCase,
-	tokenGenerator token.Generator,
 	authPr auth.Portal,
 ) {
 	c := &ctrl{
@@ -51,6 +49,10 @@ func (c *ctrl) registerHandlers() {
 	c.register(http.MethodGet, "/users/me", http.HandlerFunc(c.getMe), c.authPr.RequireAuth())
 	c.register(http.MethodPut, "/users/me/password", http.HandlerFunc(c.changePassword), c.authPr.RequireAuth())
 	c.register(http.MethodPut, "/users/me/image", http.HandlerFunc(c.changeImage), c.authPr.RequireAuth())
+
+	// image endpoints
+	c.register(http.MethodPost, "/images/upload", http.HandlerFunc(c.uploadImage), c.authPr.RequireAuth())
+	c.register(http.MethodGet, "/images/{image_path...}", http.HandlerFunc(c.downloadImage))
 }
 
 func (c *ctrl) register(
